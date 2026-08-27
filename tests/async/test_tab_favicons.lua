@@ -21,7 +21,7 @@ T.test_reproduce_provisional_eval_js_error = function ()
     ensure_initial_page(w)
 
     local error_logged = nil
-    local function log_handler(time, level, group, msg)
+    local function log_handler(_, level, _, msg)
         if level == "error" and msg:find("JavaScript context not available") then
             error_logged = msg
         end
