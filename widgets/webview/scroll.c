@@ -69,7 +69,26 @@ luaH_webview_scroll_newindex(lua_State *L)
     lua_pushinteger(L, webkit_web_view_get_page_id(d->view));
     lua_pushinteger(L, d->scroll_x);
     lua_pushinteger(L, d->scroll_y);
-    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, 4, 6);
+    lua_pushboolean(L, FALSE);
+    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, -4, -1);
+    lua_pop(L, 4);
+
+    return 0;
+}
+
+static gint
+luaH_webview_scroll_by(lua_State *L)
+{
+    webview_data_t *d = luaH_checkwvdata(L, 1);
+    gint dx = luaL_checkinteger(L, 2);
+    gint dy = luaL_checkinteger(L, 3);
+
+    lua_pushinteger(L, webkit_web_view_get_page_id(d->view));
+    lua_pushinteger(L, dx);
+    lua_pushinteger(L, dy);
+    lua_pushboolean(L, TRUE);
+    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, -4, -1);
+    lua_pop(L, 4);
 
     return 0;
 }

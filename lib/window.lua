@@ -908,6 +908,11 @@ settings.register_settings({
         default = 40,
         desc = "The size (in pixels) of the scroll step.",
     },
+    ["window.scroll_half_page_fraction"] = {
+        type = "number", min = 0.01, max = 1.0,
+        default = 0.5,
+        desc = "The fraction of window height to scroll for half page actions (e.g. <Control-d>/<Control-u>).",
+    },
     ["window.zoom_step"] = {
         type = "number", min = 0,
         default = 0.1,

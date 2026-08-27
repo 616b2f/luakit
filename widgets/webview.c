@@ -812,6 +812,7 @@ luaH_webview_index(lua_State *L, widget_t *w, luakit_token_t token)
       PF_CASE(EVAL_JS,              luaH_webview_eval_js)
       PF_CASE(LOAD_STRING,          luaH_webview_load_string)
       PF_CASE(SAVE,                 luaH_webview_save)
+      PF_CASE(SCROLL_BY,            luaH_webview_scroll_by)
       /* use is_loading property instead of this function */
       PF_CASE(LOADING,              luaH_webview_loading)
       PF_CASE(RELOAD,               luaH_webview_reload)

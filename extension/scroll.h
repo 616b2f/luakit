@@ -22,6 +22,7 @@
 #include <webkit/webkit-web-process-extension.h>
 
 void web_scroll_to(guint64 page_id, gint scroll_x, gint scroll_y);
+void web_scroll_by(guint64 page_id, gint dx, gint dy);
 void web_scroll_init(void);
 
 #endif

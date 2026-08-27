@@ -213,8 +213,22 @@ modes.add_binds("normal", {
     { "<Control-e>", actions.scroll.down },
     { "<Control-y>", actions.scroll.up },
 
-    { "<Control-d>", "Scroll half page down.", function (w) w:scroll{ ypagerel =  0.5 } end },
-    { "<Control-u>", "Scroll half page up.", function (w) w:scroll{ ypagerel = -0.5 } end },
+    { "<Control-d>", "Scroll half page down or by [count] lines/steps.",
+        function (w, m)
+            if m.count then
+                w:scroll{ yrel = settings.get_setting("window.scroll_step") * m.count }
+            else
+                w:scroll{ ypagerel = settings.get_setting("window.scroll_half_page_fraction") or 0.5 }
+            end
+        end },
+    { "<Control-u>", "Scroll half page up or by [count] lines/steps.",
+        function (w, m)
+            if m.count then
+                w:scroll{ yrel = -settings.get_setting("window.scroll_step") * m.count }
+            else
+                w:scroll{ ypagerel = -(settings.get_setting("window.scroll_half_page_fraction") or 0.5) }
+            end
+        end },
     { "<Control-f>", actions.scroll.page_down },
     { "<Control-b>", actions.scroll.page_up },
     { "<space>", actions.scroll.page_down },

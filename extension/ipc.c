@@ -70,15 +70,26 @@ ipc_recv_scroll(ipc_endpoint_t *UNUSED(ipc), const guint8 *msg, guint length)
 {
     lua_State *L = common.L;
     gint n = lua_deserialize_range(L, msg, length);
-    g_assert_cmpint(n, ==, 3);
-
-    guint64 page_id = lua_tointeger(L, -3);
-    gint scroll_x = lua_tointeger(L, -2);
-    gint scroll_y = lua_tointeger(L, -1);
-
-    web_scroll_to(page_id, scroll_x, scroll_y);
-
-    lua_pop(L, 3);
+    if (n == 4) {
+        guint64 page_id = lua_tointeger(L, -4);
+        gint x = lua_tointeger(L, -3);
+        gint y = lua_tointeger(L, -2);
+        gboolean is_relative = lua_toboolean(L, -1);
+        if (is_relative)
+            web_scroll_by(page_id, x, y);
+        else
+            web_scroll_to(page_id, x, y);
+        lua_pop(L, 4);
+    } else if (n == 3) {
+        guint64 page_id = lua_tointeger(L, -3);
+        gint scroll_x = lua_tointeger(L, -2);
+        gint scroll_y = lua_tointeger(L, -1);
+        web_scroll_to(page_id, scroll_x, scroll_y);
+        lua_pop(L, 3);
+    } else {
+        warn("invalid scroll IPC arguments count: %d", n);
+        lua_pop(L, n);
+    }
 }
 
 void

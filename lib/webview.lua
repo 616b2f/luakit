@@ -213,29 +213,38 @@ _M.methods = {
 -- @tparam table new Table of scroll information.
 function _M.methods.scroll(view, w, new)
     local s = view.scroll
+    local dx = 0
+    local dy = 0
+    local has_rel = false
+
+    -- Check for relative movement first
+    if rawget(new, "xrel") then
+        dx = dx + new.xrel
+        has_rel = true
+    end
+    if rawget(new, "yrel") then
+        dy = dy + new.yrel
+        has_rel = true
+    end
+    if rawget(new, "xpagerel") then
+        local page_size = s.xpage_size or view.width or 0
+        dx = dx + math.ceil(page_size * new.xpagerel)
+        has_rel = true
+    end
+    if rawget(new, "ypagerel") then
+        local page_size = s.ypage_size or view.height or 0
+        dy = dy + math.ceil(page_size * new.ypagerel)
+        has_rel = true
+    end
+
+    if has_rel then
+        view:scroll_by(dx, dy)
+        return
+    end
+
     for _, axis in ipairs{ "x", "y" } do
-        -- Relative px movement
-        if rawget(new, axis.."rel") then
-            local dir = axis == "x" and "Width" or "Height"
-            local js = string.format([=[
-                Math.max(window.document.documentElement.scroll%s - window.inner%s, 0)
-            ]=], dir, dir)
-            w.view:eval_js(js, { callback = function (max)
-                local scroll_to = s[axis] + new[axis.."rel"]
-                if scroll_to > max then
-                    scroll_to = max
-                elseif scroll_to < 0 then
-                    scroll_to = 0
-                end
-                s[axis] = scroll_to
-            end})
-
-        -- Relative page movement
-        elseif rawget(new, axis .. "pagerel") then
-            s[axis] = s[axis] + math.ceil(s[axis.."page_size"] * new[axis.."pagerel"])
-
         -- Absolute px movement
-        elseif rawget(new, axis) then
+        if rawget(new, axis) then
             local n = new[axis]
             if n == -1 then
                 local dir = axis == "x" and "Width" or "Height"

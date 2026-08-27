@@ -138,6 +138,27 @@ web_scroll_to(guint64 page_id, gint scroll_x, gint scroll_y)
 }
 
 void
+web_scroll_by(guint64 page_id, gint dx, gint dy)
+{
+    WebKitWebPage *page = webkit_web_process_extension_get_page(extension.ext, page_id);
+    if (!page)
+        return;
+    WebKitFrame *frame = web_page_get_main_frame(page);
+    if (!frame)
+        return;
+    JSCContext *ctx = webkit_frame_get_js_context_for_script_world(frame, extension.script_world);
+    if (!ctx)
+        return;
+
+    gchar *script = g_strdup_printf("window.scrollBy(%d, %d);", dx, dy);
+    JSCValue *res = jsc_context_evaluate_with_source_uri(ctx, script, -1, NULL, 1);
+    if (res)
+        g_object_unref(res);
+    g_free(script);
+    g_object_unref(ctx);
+}
+
+void
 web_scroll_init(void)
 {
     g_signal_connect(extension.ext, "page-created", G_CALLBACK(web_page_created_cb), NULL);
