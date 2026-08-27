@@ -74,7 +74,7 @@ tab.add_signal("build", function (tl, view)
         else
             fav:show() spin:hide() spin:stop()
         end
-        if status == "finished" or not v.is_loading then update_favicon(v) end
+        if status == "finished" then update_favicon(v) end
     end
     view:add_signal("load-status", load_status_cb)
     view:add_signal("property::is_loading", load_status_cb)
