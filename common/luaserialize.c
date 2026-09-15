@@ -46,6 +46,7 @@ lua_function_reader(lua_State *UNUSED(L), const guint8** bytes, size_t *sz)
 static void
 lua_serialize_value(lua_State *L, GByteArray *out, int index)
 {
+    index = luaH_absindex(L, index);
     gint8 type = lua_type(L, index);
     int top = lua_gettop(L);
 

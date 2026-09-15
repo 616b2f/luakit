@@ -70,8 +70,9 @@ luaH_webview_scroll_newindex(lua_State *L)
     lua_pushinteger(L, d->scroll_x);
     lua_pushinteger(L, d->scroll_y);
     lua_pushboolean(L, FALSE);
-    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, -4, -1);
-    lua_pop(L, 4);
+    lua_pushboolean(L, webkit_web_view_is_loading(d->view));
+    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, -5, -1);
+    lua_pop(L, 5);
 
     return 0;
 }
@@ -87,8 +88,9 @@ luaH_webview_scroll_by(lua_State *L)
     lua_pushinteger(L, dx);
     lua_pushinteger(L, dy);
     lua_pushboolean(L, TRUE);
-    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, -4, -1);
-    lua_pop(L, 4);
+    lua_pushboolean(L, webkit_web_view_is_loading(d->view));
+    ipc_send_lua(d->ipc, IPC_TYPE_scroll, L, -5, -1);
+    lua_pop(L, 5);
 
     return 0;
 }

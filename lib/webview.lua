@@ -764,7 +764,13 @@ _M.add_signal("init", function (view)
             local val, match = settings.get_setting_for_view(v, "webview.user_agent")
             set(v, "webview.user_agent", val, match)
             v:show()
-        elseif status == "committed" then set_all(v) end
+        elseif status == "committed" then
+            set_all(v)
+        elseif status == "finished" then
+            local js = "try { if (window.history && 'scrollRestoration' in window.history) "
+                .. "window.history.scrollRestoration = 'auto'; } catch (e) {}"
+            v:eval_js(js, { no_return = true })
+        end
     end)
     view:add_signal("web-extension-loaded", function (v)
         -- Explicitly set the zoom, due to a WebKit bug that resets the

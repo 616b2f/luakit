@@ -117,7 +117,7 @@ web_page_created_cb(WebKitWebProcessExtension *UNUSED(ext), WebKitWebPage *web_p
 }
 
 void
-web_scroll_to(guint64 page_id, gint scroll_x, gint scroll_y)
+web_scroll_to(guint64 page_id, gint scroll_x, gint scroll_y, gboolean is_loading)
 {
     WebKitWebPage *page = webkit_web_process_extension_get_page(extension.ext, page_id);
     if (!page)
@@ -129,7 +129,19 @@ web_scroll_to(guint64 page_id, gint scroll_x, gint scroll_y)
     if (!ctx)
         return;
 
-    gchar *script = g_strdup_printf("window.scrollTo(%d, %d);", scroll_x, scroll_y);
+    gchar *script = NULL;
+    if (is_loading) {
+        script = g_strdup_printf(
+            "try {\n"
+            "    if (window.history && 'scrollRestoration' in window.history) {\n"
+            "        window.history.scrollRestoration = 'manual';\n"
+            "    }\n"
+            "} catch (e) {}\n"
+            "window.scrollTo(%d, %d);", scroll_x, scroll_y);
+    } else {
+        script = g_strdup_printf("window.scrollTo(%d, %d);", scroll_x, scroll_y);
+    }
+
     JSCValue *res = jsc_context_evaluate_with_source_uri(ctx, script, -1, NULL, 1);
     if (res)
         g_object_unref(res);
@@ -138,7 +150,7 @@ web_scroll_to(guint64 page_id, gint scroll_x, gint scroll_y)
 }
 
 void
-web_scroll_by(guint64 page_id, gint dx, gint dy)
+web_scroll_by(guint64 page_id, gint dx, gint dy, gboolean is_loading)
 {
     WebKitWebPage *page = webkit_web_process_extension_get_page(extension.ext, page_id);
     if (!page)
@@ -150,7 +162,19 @@ web_scroll_by(guint64 page_id, gint dx, gint dy)
     if (!ctx)
         return;
 
-    gchar *script = g_strdup_printf("window.scrollBy(%d, %d);", dx, dy);
+    gchar *script = NULL;
+    if (is_loading) {
+        script = g_strdup_printf(
+            "try {\n"
+            "    if (window.history && 'scrollRestoration' in window.history) {\n"
+            "        window.history.scrollRestoration = 'manual';\n"
+            "    }\n"
+            "} catch (e) {}\n"
+            "window.scrollBy(%d, %d);", dx, dy);
+    } else {
+        script = g_strdup_printf("window.scrollBy(%d, %d);", dx, dy);
+    }
+
     JSCValue *res = jsc_context_evaluate_with_source_uri(ctx, script, -1, NULL, 1);
     if (res)
         g_object_unref(res);
