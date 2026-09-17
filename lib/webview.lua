@@ -766,10 +766,6 @@ _M.add_signal("init", function (view)
             v:show()
         elseif status == "committed" then
             set_all(v)
-        elseif status == "finished" then
-            local js = "try { if (window.history && 'scrollRestoration' in window.history) "
-                .. "window.history.scrollRestoration = 'auto'; } catch (e) {}"
-            v:eval_js(js, { no_return = true })
         end
     end)
     view:add_signal("web-extension-loaded", function (v)
