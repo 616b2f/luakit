@@ -43,6 +43,41 @@ T.test_download_file = function ()
     os.remove(dest)
 end
 
+T.test_download_cancel = function ()
+    test.wait_for_idle()
+
+    local d = downloads.add("data:text/html,Cancel%20Test", {})
+    d:cancel()
+    test.delay(50)
+    assert.is_equal("cancelled", d.status)
+end
+
+T.test_download_file_uri_destination = function ()
+    test.wait_for_idle()
+
+    local dest_path = "/tmp/download_file_uri_test.html"
+    os.remove(dest_path)
+
+    local d = downloads.add("data:text/html,File%20URI%20Test", { filename = "file://" .. dest_path })
+
+    d:add_signal("error", function (_, err)
+        assert(false, "Download failed: " .. tostring(err))
+    end)
+
+    if d.status ~= "finished" then
+        d:add_signal("finished", function ()
+            test.continue()
+        end)
+        test.wait(5000)
+    end
+
+    test.delay(50)
+    local f = io.open(dest_path, "r")
+    assert.is_not_nil(f, "Downloaded file not found")
+    f:close()
+    os.remove(dest_path)
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80

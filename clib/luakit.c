@@ -152,29 +152,31 @@ luaH_luakit_selection_table_push(lua_State *L)
     return 1;
 }
 
+typedef struct {
+    GMainLoop *loop;
+    gchar *filename;
+} save_file_context_t;
+
 static void
 on_save_dialog_complete(GObject *source_object,
                         GAsyncResult *result,
                         gpointer user_data)
 {
     GtkFileDialog *dialog = GTK_FILE_DIALOG(source_object);
+    save_file_context_t *ctx = (save_file_context_t *)user_data;
     GError *error = NULL;
 
-    lua_State *L = (lua_State *)user_data;
-
-    GFile *file = gtk_file_dialog_save_finish (dialog, result, &error);
+    GFile *file = gtk_file_dialog_save_finish(dialog, result, &error);
 
     if (file) {
-        gchar *filename = g_file_get_path (file);
-        lua_pushstring(L, filename);
-        g_free(filename);
-        g_object_unref (file);
+        ctx->filename = g_file_get_path(file);
+        g_object_unref(file);
     } else {
-        lua_pushnil(L);
-        g_error_free (error);
+        if (error)
+            g_error_free(error);
     }
 
-    g_object_unref (dialog);
+    g_main_loop_quit(ctx->loop);
 }
 
 /** Shows a GtkFileDialog to save a file.
@@ -213,15 +215,34 @@ luaH_luakit_save_file(lua_State *L)
 
     gtk_file_dialog_set_initial_name(dialog, default_name);
 
-    GFile *initial_dir = g_file_new_for_path (default_folder);
-    gtk_file_dialog_set_initial_folder(dialog, initial_dir);
-    g_object_unref(initial_dir);
+    if (default_folder && *default_folder) {
+        GFile *initial_dir = g_file_new_for_path(default_folder);
+        gtk_file_dialog_set_initial_folder(dialog, initial_dir);
+        g_object_unref(initial_dir);
+    }
+
+    save_file_context_t ctx = {
+        .loop = g_main_loop_new(NULL, FALSE),
+        .filename = NULL,
+    };
 
     gtk_file_dialog_save(dialog,
                          parent_window,
                          NULL, // No GCancellable
                          on_save_dialog_complete,
-                         L);
+                         &ctx);
+
+    g_main_loop_run(ctx.loop);
+    g_main_loop_unref(ctx.loop);
+    g_object_unref(dialog);
+
+    if (ctx.filename) {
+        lua_pushstring(L, ctx.filename);
+        g_free(ctx.filename);
+    } else {
+        lua_pushnil(L);
+    }
+
     return 1;
 }
 

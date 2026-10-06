@@ -84,9 +84,11 @@ luaH_download_unref(lua_State *L, download_t *download)
     }
 
     /* delete the annoying backup file generated while downloading */
-    gchar *backup = g_strdup_printf("%s~", download->destination);
-    g_unlink(backup);
-    g_free(backup);
+    if (download->destination) {
+        gchar *backup = g_strdup_printf("%s~", download->destination);
+        g_unlink(backup);
+        g_free(backup);
+    }
 }
 
 /**
@@ -133,8 +135,11 @@ decide_destination_cb(WebKitDownload* UNUSED(dl), gchar *suggested_filename, dow
 
     /* Prevent segfault when download cancelled without setting destination.
      * https://github.com/aidanholm/luakit/issues/402 */
-    if (download->status == LUAKIT_DOWNLOAD_STATUS_CANCELLED)
-        webkit_download_set_destination(download->webkit_download, "file:///tmp/");
+    if (download->status == LUAKIT_DOWNLOAD_STATUS_CANCELLED) {
+        gchar *tmp_dest = g_build_filename(g_get_tmp_dir(), "cancelled", NULL);
+        webkit_download_set_destination(download->webkit_download, tmp_dest);
+        g_free(tmp_dest);
+    }
 
     return handled;
 }
@@ -328,8 +333,24 @@ static gint
 luaH_download_set_destination(lua_State *L, download_t *download)
 {
     const gchar *destination = luaL_checkstring(L, -1);
-    download->destination = g_strdup(destination);
-    webkit_download_set_destination(download->webkit_download, destination);
+    gchar *path = NULL;
+
+    if (g_str_has_prefix(destination, "file://"))
+        path = g_filename_from_uri(destination, NULL, NULL);
+    if (!path)
+        path = g_strdup(destination);
+
+    if (!g_path_is_absolute(path)) {
+        gchar *abs_path = g_canonicalize_filename(path, NULL);
+        g_free(path);
+        path = abs_path;
+    }
+
+    g_free(download->destination);
+    download->destination = g_strdup(path);
+    webkit_download_set_destination(download->webkit_download, path);
+    g_free(path);
+
     luaH_object_emit_signal(L, -3, "property::destination", 0, 0);
     return 0;
 }
