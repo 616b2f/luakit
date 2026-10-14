@@ -64,6 +64,31 @@ T.test_tab_favicons_private_tab = function ()
     w:close_tab(view)
 end
 
+T.test_tab_favicons_plain_text = function ()
+    local w = assert(select(2, next(window.bywidget)))
+    ensure_initial_page(w)
+
+    local errors = {}
+    local function log_handler(_, level, _, msg_text)
+        if level == "error" then
+            table.insert(errors, msg_text)
+        end
+    end
+    msg.add_signal("log", log_handler)
+
+    local view = w:new_tab(test.http_server() .. "patch.txt", { switch = true })
+    test.wait_for_view(view)
+    test.delay(300)
+
+    msg.remove_signal("log", log_handler)
+    w:close_tab(view)
+
+    for _, err in ipairs(errors) do
+        assert.is_nil(err:match("JavaScript context not available"), "Got error: " .. err)
+        assert.is_nil(err:match("attempt to index local 'doc'"), "Got error: " .. err)
+    end
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80

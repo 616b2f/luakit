@@ -14,7 +14,7 @@ ui:add_signal("load-finished", function(_, page)
     local doc = page.document
 
     -- do nothing if loaded document is not HTML
-    if not doc.body then return end
+    if not doc or not doc.body then return end
 
     if page.uri:find("luakit://", 1, true) == 1 then
         doc.body:add_event_listener("click", true, function (_, event)

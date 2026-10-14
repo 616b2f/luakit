@@ -52,11 +52,15 @@ tab.add_signal("build", function (tl, view)
                 document, null, XPathResult.STRING_TYPE, null).stringValue || '/favicon.ico';
         ]=]
         v:eval_js(favicon_js, { callback = function (favicon_uri, err)
-            assert(not err, err)
             if not fav.is_alive then return end
-            favicon_uri = favicon_uri:match("^luakit://(.*)")
-            if favicon_uri then fav:filename(favicon_uri)
-            elseif not fav:set_favicon_for_uri(uri) then
+            if not err and favicon_uri then
+                local chrome_icon = favicon_uri:match("^luakit://(.*)")
+                if chrome_icon then
+                    fav:filename(chrome_icon)
+                    return
+                end
+            end
+            if not fav:set_favicon_for_uri(uri) then
                 fav:filename("icons/tab-icon-page.png")
             end
         end})
