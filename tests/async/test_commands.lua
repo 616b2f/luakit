@@ -84,6 +84,28 @@ T.test_command_javascript = function ()
     assert.equal(12345, val)
 end
 
+T.test_command_prompt_margins_and_bg = function ()
+    test.wait_for_idle()
+
+    -- Ensure outer status bar layout spans edge to edge with 0 margins
+    assert.equal(0, w.sbar.layout.margin_left)
+    assert.equal(0, w.sbar.layout.margin_right)
+
+    -- Ensure inner left and right layouts have 3px margins
+    assert.equal(3, w.sbar.l.layout.margin_left)
+    assert.equal(3, w.sbar.r.layout.margin_right)
+
+    -- Test prompt background styling
+    w:set_prompt("Test prompt", { fg = "#123456", bg = "#654321" })
+    assert.equal("#654321", w.ibar.layout.bg)
+    assert.equal("#654321", w.mbar.label.bg)
+    assert.equal("#123456", w.ibar.input.fg)
+    assert.equal("#123456", w.ibar.prompt.fg)
+
+    -- Reset mode back to normal
+    w:set_mode()
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80

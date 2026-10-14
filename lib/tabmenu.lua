@@ -31,7 +31,7 @@ local escape = lousy.util.escape
 
 new_mode("tabmenu", {
     enter = function (w)
-        _M.hide_box = not w.sbar.ebox.visible
+        _M.hide_box = not w.sbar.layout.visible
         local rows = {}
         for _, view in ipairs(w.tabs.children) do
             if not view.uri then view.uri = " " end
@@ -41,13 +41,13 @@ new_mode("tabmenu", {
         local cur = w.tabs:current()
         local ind = 0
         repeat w.menu:move_down(); ind = ind + 1 until ind == cur
-        w.sbar.ebox:show()
+        w.sbar.layout:show()
         w:notify("Del - close, Return - switch.", false)
     end,
 
     leave = function (w)
         if _M.hide_box == true then
-            w.sbar.ebox:hide()
+            w.sbar.layout:hide()
         end
         w.menu:hide()
     end,

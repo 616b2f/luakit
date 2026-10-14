@@ -131,8 +131,8 @@ function _M.build(w)
     w.win.decorated = false
     i.input.show_frame = false
     w.tabs.show_tabs = false
-    w.sbar.layout.margin_left = 3
-    w.sbar.layout.margin_right = 3
+    w.sbar.l.layout.margin_left = 3
+    w.sbar.r.layout.margin_right = 3
 
     -- Allow error messages to be copied
     -- TODO: *only* allow copying when showing an error
@@ -398,9 +398,9 @@ _M.methods = {
             end
         end
         set_widget(w.ibar.prompt)
-        w.ibar.bg = bg
+        w.ibar.layout.bg = bg
         set_widget(w.mbar.label)
-        w.mbar.bg = bg
+        w.mbar.label.bg = bg
         w_priv[w].prompt_text = text
         w:update_sbar_visibility()
     end,
