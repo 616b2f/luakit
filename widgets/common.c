@@ -820,4 +820,31 @@ luaH_widget_destroy(lua_State *L)
     return 0;
 }
 
+gint
+luaH_widget_add_css_class(lua_State *L)
+{
+    widget_t *w = luaH_checkwidget(L, 1);
+    const gchar *css_class = luaL_checkstring(L, 2);
+    gtk_widget_add_css_class(w->widget, css_class);
+    return 0;
+}
+
+gint
+luaH_widget_remove_css_class(lua_State *L)
+{
+    widget_t *w = luaH_checkwidget(L, 1);
+    const gchar *css_class = luaL_checkstring(L, 2);
+    gtk_widget_remove_css_class(w->widget, css_class);
+    return 0;
+}
+
+gint
+luaH_widget_has_css_class(lua_State *L)
+{
+    widget_t *w = luaH_checkwidget(L, 1);
+    const gchar *css_class = luaL_checkstring(L, 2);
+    lua_pushboolean(L, gtk_widget_has_css_class(w->widget, css_class));
+    return 1;
+}
+
 // vim: ft=c:et:sw=4:ts=8:sts=4:tw=80

@@ -42,6 +42,15 @@
       return luaH_widget_get_align(L, widget);        \
     case L_TK_CHILDREN:                               \
       return luaH_widget_get_children(L, widget);     \
+    case L_TK_ADD_CSS_CLASS:                          \
+      lua_pushcfunction(L, luaH_widget_add_css_class); \
+      return 1;                                       \
+    case L_TK_REMOVE_CSS_CLASS:                       \
+      lua_pushcfunction(L, luaH_widget_remove_css_class); \
+      return 1;                                       \
+    case L_TK_HAS_CSS_CLASS:                          \
+      lua_pushcfunction(L, luaH_widget_has_css_class); \
+      return 1;                                       \
     case L_TK_SHOW:                                   \
       lua_pushcfunction(L, luaH_widget_show);         \
       return 1;                                       \
@@ -170,6 +179,9 @@ gint luaH_widget_set_min_size(lua_State *L, widget_t *w);
 gint luaH_widget_get_min_size(lua_State *L, widget_t *w);
 gint luaH_widget_set_align(lua_State *L, widget_t *w);
 gint luaH_widget_get_align(lua_State *L, widget_t *w);
+gint luaH_widget_add_css_class(lua_State *L);
+gint luaH_widget_remove_css_class(lua_State *L);
+gint luaH_widget_has_css_class(lua_State *L);
 
 #endif
 

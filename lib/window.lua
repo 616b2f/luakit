@@ -134,6 +134,13 @@ function _M.build(w)
     w.sbar.l.layout.margin_left = 3
     w.sbar.r.layout.margin_right = 3
 
+    -- Apply GTK CSS classes
+    w.win:add_css_class("window-canvas")
+    w.layout:add_css_class("window-canvas")
+    w.bar_layout:add_css_class("bar-canvas")
+    w.sbar.layout:add_css_class("statusbar")
+    w.ibar.layout:add_css_class("inputbar")
+
     -- Allow error messages to be copied
     -- TODO: *only* allow copying when showing an error
     w.ibar.prompt.selectable = true
@@ -234,6 +241,28 @@ local init_funcs = {
 
     apply_window_theme = function (w)
         local s, m, i = w.sbar, w.mbar, w.ibar
+
+        -- Load CSS rules for classes into GTK display
+        if luakit.load_css then
+            local css = string.format([[
+                .window-canvas {
+                    background-color: %s;
+                }
+                .bar-canvas {
+                    background-color: %s;
+                }
+                .statusbar {
+                    background-color: %s;
+                    color: %s;
+                }
+            ]],
+                theme.bg or "#000",
+                theme.sbar_bg or "#000",
+                theme.sbar_bg or "#000",
+                theme.sbar_fg or "#fff"
+            )
+            luakit.load_css(css)
+        end
 
         -- Set foregrounds
         for wi, v in pairs({

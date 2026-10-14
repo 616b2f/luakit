@@ -269,3 +269,6 @@ win_xid
 replace
 stack
 visible_child
+add_css_class
+remove_css_class
+has_css_class

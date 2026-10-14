@@ -106,6 +106,29 @@ T.test_command_prompt_margins_and_bg = function ()
     w:set_mode()
 end
 
+T.test_widget_css_classes = function ()
+    test.wait_for_idle()
+
+    -- Check window and container base CSS classes
+    assert.is_true(w.win:has_css_class("window-canvas"))
+    assert.is_true(w.layout:has_css_class("window-canvas"))
+    assert.is_true(w.bar_layout:has_css_class("bar-canvas"))
+    assert.is_true(w.sbar.layout:has_css_class("statusbar"))
+    assert.is_true(w.ibar.layout:has_css_class("inputbar"))
+
+    -- Test dynamic add, check, and remove on widgets
+    local lbl = widget{type="label"}
+    assert.is_false(lbl:has_css_class("custom-highlight"))
+    lbl:add_css_class("custom-highlight")
+    assert.is_true(lbl:has_css_class("custom-highlight"))
+    lbl:remove_css_class("custom-highlight")
+    assert.is_false(lbl:has_css_class("custom-highlight"))
+
+    -- Test luakit.load_css
+    assert.is_function(luakit.load_css)
+    luakit.load_css(".test-rule { background-color: #123; }")
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80

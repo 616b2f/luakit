@@ -953,6 +953,21 @@ luaH_luakit_allow_certificate(lua_State *L)
     return 1;
 }
 
+static gint
+luaH_luakit_load_css(lua_State *L)
+{
+    const gchar *css = luaL_checkstring(L, 1);
+    GtkCssProvider *provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_string(provider, css);
+    GdkDisplay *display = gdk_display_get_default();
+    if (display) {
+        gtk_style_context_add_provider_for_display(display,
+            GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    }
+    g_object_unref(provider);
+    return 0;
+}
+
 gint
 luaH_class_index_miss_property(lua_State *L, lua_object_t* UNUSED(obj))
 {
@@ -990,6 +1005,7 @@ luakit_lib_setup(lua_State *L)
         { "wch_lower",              luaH_luakit_wch_lower },
         { "wch_upper",              luaH_luakit_wch_upper },
         { "clear_favicon_database", luaH_luakit_clear_favicon_database },
+        { "load_css",               luaH_luakit_load_css },
         { NULL,                     NULL }
     };
 

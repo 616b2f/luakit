@@ -32,8 +32,12 @@ T.test_download_file = function ()
         test.wait(5000)
     end
 
-    test.delay(50)
-    local f = io.open(dest, "r")
+    local f
+    for _ = 1, 20 do
+        f = io.open(dest, "r")
+        if f then break end
+        test.delay(50)
+    end
     assert.is_not_nil(f, "Downloaded file not found")
     local content = f:read("*a")
     f:close()
@@ -71,8 +75,12 @@ T.test_download_file_uri_destination = function ()
         test.wait(5000)
     end
 
-    test.delay(50)
-    local f = io.open(dest_path, "r")
+    local f
+    for _ = 1, 20 do
+        f = io.open(dest_path, "r")
+        if f then break end
+        test.delay(50)
+    end
     assert.is_not_nil(f, "Downloaded file not found")
     f:close()
     os.remove(dest_path)
