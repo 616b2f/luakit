@@ -77,9 +77,16 @@ T.test_command_javascript = function ()
     test.wait_for_idle()
     test.delay(500)
 
-    -- Read back the variable using eval_js
-    w.view:eval_js("window.luakit_test_var", { callback = function (res, err) test.continue(res, err) end })
-    local val, err = test.wait()
+    -- Read back the variable using eval_js (poll until async IPC eval completes)
+    local val, err
+    test.wait_until(function ()
+        w.view:eval_js("window.luakit_test_var", { callback = function (res, e)
+            val, err = res, e
+            test.continue()
+        end })
+        test.wait(2000)
+        return val == 12345
+    end, 50, 5000)
     assert.is_nil(err)
     assert.equal(12345, val)
 end
@@ -110,11 +117,13 @@ T.test_widget_css_classes = function ()
     test.wait_for_idle()
 
     -- Check window and container base CSS classes
-    assert.is_true(w.win:has_css_class("window-canvas"))
-    assert.is_true(w.layout:has_css_class("window-canvas"))
-    assert.is_true(w.bar_layout:has_css_class("bar-canvas"))
-    assert.is_true(w.sbar.layout:has_css_class("statusbar"))
-    assert.is_true(w.ibar.layout:has_css_class("inputbar"))
+    assert.is_true(w.win:has_css_class("luakit-window"))
+    assert.is_true(w.layout:has_css_class("luakit-window-layout"))
+    assert.is_true(w.bar_layout:has_css_class("luakit-bar-stack"))
+    assert.is_true(w.sbar.layout:has_css_class("luakit-status-bar"))
+    assert.is_true(w.ibar.layout:has_css_class("luakit-input-bar"))
+    assert.is_true(w.mbar.label:has_css_class("luakit-message-bar"))
+    assert.is_true(w.tablist.widget:has_css_class("luakit-tab-bar"))
 
     -- Test dynamic add, check, and remove on widgets
     local lbl = widget{type="label"}

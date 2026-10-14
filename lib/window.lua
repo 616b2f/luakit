@@ -135,11 +135,13 @@ function _M.build(w)
     w.sbar.r.layout.margin_right = 3
 
     -- Apply GTK CSS classes
-    w.win:add_css_class("window-canvas")
-    w.layout:add_css_class("window-canvas")
-    w.bar_layout:add_css_class("bar-canvas")
-    w.sbar.layout:add_css_class("statusbar")
-    w.ibar.layout:add_css_class("inputbar")
+    w.win:add_css_class("luakit-window")
+    w.layout:add_css_class("luakit-window-layout")
+    w.tablist.widget:add_css_class("luakit-tab-bar")
+    w.bar_layout:add_css_class("luakit-bar-stack")
+    w.sbar.layout:add_css_class("luakit-status-bar")
+    w.ibar.layout:add_css_class("luakit-input-bar")
+    w.mbar.label:add_css_class("luakit-message-bar")
 
     -- Allow error messages to be copied
     -- TODO: *only* allow copying when showing an error
@@ -245,13 +247,14 @@ local init_funcs = {
         -- Load CSS rules for classes into GTK display
         if luakit.load_css then
             local css = string.format([[
-                .window-canvas {
+                .luakit-window,
+                .luakit-window-layout {
                     background-color: %s;
                 }
-                .bar-canvas {
+                .luakit-bar-stack {
                     background-color: %s;
                 }
-                .statusbar {
+                .luakit-status-bar {
                     background-color: %s;
                     color: %s;
                 }
