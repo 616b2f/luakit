@@ -1,10 +1,14 @@
 local test = require "tests.lib"
-local luacheck = require "luacheck"
+local ok_luacheck, luacheck = pcall(require, "luacheck")
 local lousy = { util = require("lousy.util") }
 
 local T = {}
 
 function T.test_luacheck ()
+    if not ok_luacheck then
+        print("  SKIP: luacheck module not installed")
+        return
+    end
     local lua_dirs = {"lib", "config", "tests", "build-utils"}
     local exclude_files = {
         "lib/markdown.lua",

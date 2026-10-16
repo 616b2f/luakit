@@ -67,10 +67,11 @@ local function do_test_file(test_file)
                 local obj, sig = ret[1], ret[2]
                 local function wrapper(...)
                     obj:remove_signal(sig, wrapper)
+                    waiting_signal = nil
                     shared_lib.resume_suspended_test(...)
                 end
                 obj:add_signal(sig, wrapper)
-                waiting_signal = sig
+                waiting_signal = { obj = obj, sig = sig, fn = wrapper }
             end
 
             -- Return to luakit
@@ -102,7 +103,10 @@ local function do_test_file(test_file)
         assert(type(func) == "thread")
         -- Stop the timeout timer
         wait_timer:stop()
-        waiting_signal = nil
+        if waiting_signal then
+            waiting_signal.obj:remove_signal(waiting_signal.sig, waiting_signal.fn)
+            waiting_signal = nil
+        end
         -- Continue the test
         print("__cont__ " .. current_test)
         local test_status = begin_or_continue_test(func, ...)
@@ -116,7 +120,9 @@ local function do_test_file(test_file)
         wait_timer:stop()
         print("__fail__ " .. current_test)
         if waiting_signal then
-            print("Timed out while waiting for signal '" .. waiting_signal .. "'")
+            waiting_signal.obj:remove_signal(waiting_signal.sig, waiting_signal.fn)
+            print("Timed out while waiting for signal '" .. waiting_signal.sig .. "'")
+            waiting_signal = nil
         else
             print("Timed out while waiting")
         end

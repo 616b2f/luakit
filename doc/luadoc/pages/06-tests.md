@@ -11,7 +11,7 @@ actions determined by the test case.
 
 ##Running Tests
 
-To run all of Luakit's tests, run `make run-tests`, or run the test
+To run all of Luakit's tests, run `make test`, or run the test
 runner directly with `./tests/run_test.lua`. This will run all tests in
 series.
 

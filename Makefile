@@ -24,6 +24,8 @@ options:
 	@echo "CC           = $(CC)"
 	@echo "LUA_PKG_NAME = $(LUA_PKG_NAME)"
 	@echo "LUA_BIN_NAME = $(LUA_BIN_NAME)"
+	@echo "LUA_PATH     = $(LUA_PATH)"
+	@echo "LUA_CPATH    = $(LUA_CPATH)"
 	@echo "CFLAGS       = $(CFLAGS)"
 	@echo "CPPFLAGS     = $(CPPFLAGS)"
 	@echo "LDFLAGS      = $(LDFLAGS)"
@@ -127,8 +129,10 @@ uninstall:
 tests/util.so: tests/util.c Makefile
 	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) -shared $< $(LDFLAGS) -o $@
 
-run-tests: luakit luakit.so tests/util.so
+test: luakit luakit.so tests/util.so
 	@$(LUA_BIN_NAME) tests/run_test.lua
 
+run-tests: test
+
 newline: options;@echo
-.PHONY: all clean options install newline apidoc doc default
+.PHONY: all clean options install newline apidoc doc default test run-tests

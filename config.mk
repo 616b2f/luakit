@@ -15,6 +15,7 @@ CPPFLAGS   += -DVERSION=\"$(VERSION)\"
 
 DEVELOPMENT_PATHS ?= 0
 USE_LUAJIT        ?= 1
+USE_ASAN          ?= 0
 
 # === Paths ==================================================================
 
@@ -31,6 +32,17 @@ LIBDIR     ?= $(PREFIX)/lib/luakit
 ifneq ($(DEVELOPMENT_PATHS),0)
 	CPPFLAGS += -DDEVELOPMENT_PATHS
 	CFLAGS += -ggdb
+endif
+
+ifneq ($(USE_ASAN),0)
+	CFLAGS += -fsanitize=address -fno-omit-frame-pointer
+	LDFLAGS += -fsanitize=address
+endif
+
+USE_UBSAN ?= 0
+ifneq ($(USE_UBSAN),0)
+	CFLAGS += -fsanitize=undefined
+	LDFLAGS += -fsanitize=undefined
 endif
 
 # === Platform specific ======================================================

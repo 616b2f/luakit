@@ -16,6 +16,20 @@ local function ensure_initial_page(w)
     end
 end
 
+local function wait_for_hints(view, expected)
+    local hint_count
+    test.wait_until(function ()
+        local js = "document.querySelectorAll('#luakit_select_overlay .hint_overlay').length"
+        view:eval_js(js, { callback = function (res)
+            hint_count = res
+            test.continue()
+        end })
+        test.wait(500)
+        return hint_count == expected
+    end, 50, 4000)
+    return hint_count
+end
+
 T.test_follow_mode_shows_hints = function ()
     local w = assert(select(2, next(window.bywidget)))
     ensure_initial_page(w)
@@ -28,15 +42,12 @@ T.test_follow_mode_shows_hints = function ()
     -- Enter follow mode
     w:hit({}, "f")
     test.wait_for_idle()
-    test.delay(300)
 
     -- Check if the prompt text is "Follow:"
     assert.is_equal("Follow:", w.ibar.prompt.text)
 
     -- Check if we have hint overlay elements inside the overlay
-    local js = "document.querySelectorAll('#luakit_select_overlay .hint_overlay').length"
-    w.view:eval_js(js, { callback = test.continue })
-    local hint_count = test.wait()
+    local hint_count = wait_for_hints(w.view, 3)
     assert.is_equal(3, hint_count, "Expected 3 hint overlays, but got " .. tostring(hint_count))
     w:set_mode()
 end
@@ -68,7 +79,6 @@ T.test_follow_and_scroll_after_history_back = function ()
     -- Test follow mode via key binding (f) after cross-domain history back navigation
     w:hit({}, "f")
     test.wait_for_idle()
-    test.delay(300)
 
     assert.is_equal("follow", w.mode and w.mode.name)
 
@@ -76,9 +86,7 @@ T.test_follow_and_scroll_after_history_back = function ()
     local overlay_exists = test.wait()
     assert.is_true(overlay_exists, "overlay element not found in DOM after history back!")
 
-    local js = "document.querySelectorAll('#luakit_select_overlay .hint_overlay').length"
-    w.view:eval_js(js, { callback = test.continue })
-    local hint_count = test.wait()
+    local hint_count = wait_for_hints(w.view, 3)
     assert.is_equal(3, hint_count, "Expected 3 hint overlays after history back, got " .. tostring(hint_count))
     w:set_mode()
 
@@ -131,12 +139,9 @@ T.test_follow_link_cross_domain_and_history_back = function ()
     -- Verify follow mode still works on the restored page
     w:hit({}, "f")
     test.wait_for_idle()
-    test.delay(300)
     assert.is_equal("follow", w.mode and w.mode.name)
 
-    local js = "document.querySelectorAll('#luakit_select_overlay .hint_overlay').length"
-    w.view:eval_js(js, { callback = test.continue })
-    local hint_count = test.wait()
+    local hint_count = wait_for_hints(w.view, 3)
     assert.is_equal(3, hint_count, "Expected 3 hint overlays on restored page, got " .. tostring(hint_count))
     w:set_mode()
 end

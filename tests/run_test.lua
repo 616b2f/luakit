@@ -9,6 +9,21 @@
 package.path = package.path .. ';./tests/?.lua'
 package.path = package.path .. ';./lib/?.lua;./lib/?/init.lua'
 
+-- Include user luarocks paths if present
+local home = os.getenv("HOME")
+if home then
+    local rocks_share = string.format("%s/.luarocks/share/lua/5.1/?.lua;"
+        .. "%s/.luarocks/share/lua/5.1/?/init.lua;", home, home)
+    local rocks_lib = string.format("%s/.luarocks/lib/lua/5.1/?.so;"
+        .. "%s/.luarocks/lib64/lua/5.1/?.so;", home, home)
+    if not package.path:find(".luarocks") then
+        package.path = rocks_share .. package.path
+    end
+    if not package.cpath:find(".luarocks") then
+        package.cpath = rocks_lib .. package.cpath
+    end
+end
+
 local shared_lib = {}
 local test = require "tests.lib"
 local priv = require "tests.priv"
@@ -90,18 +105,17 @@ local function do_style_tests(test_files)
         if not T then
             update_test_status("fail")
             log_test_output(err)
-            break
-        end
+        else
+            for test_name, func in pairs(T) do
+                assert(type(test_name) == "string")
+                assert(type(func) == "function")
 
-        for test_name, func in pairs(T) do
-            assert(type(test_name) == "string")
-            assert(type(func) == "function")
-
-            update_test_status("run", test_name, test_file)
-            local ok, ret = pcall(func)
-            update_test_status(ok and "pass" or "fail")
-            if not ok and ret then
-                log_test_output(ret)
+                update_test_status("run", test_name, test_file)
+                local ok, ret = pcall(func)
+                update_test_status(ok and "pass" or "fail")
+                if not ok and ret then
+                    log_test_output(ret)
+                end
             end
         end
     end
@@ -115,6 +129,15 @@ local function spawn_luakit_instance(config, ...)
     local dir = util.make_tmp_dir("luakit_test_XXXXXX")
     table.insert(luakit_tmp_dirs, dir)
 
+    local lua_path = util.getenv("LUA_PATH")
+    if not lua_path or lua_path == "" then
+        lua_path = package.path
+    end
+    local lua_cpath = util.getenv("LUA_CPATH")
+    if not lua_cpath or lua_cpath == "" then
+        lua_cpath = package.cpath
+    end
+
     -- Cheap version of a chroot that doesn't require special permissions
     local env = {
         HOME            = dir,
@@ -124,8 +147,8 @@ local function spawn_luakit_instance(config, ...)
         XDG_RUNTIME_DIR = dir .. "/runtime",
         XDG_CONFIG_DIRS = "",
         DISPLAY               = xvfb_display,
-        LUA_PATH              = util.getenv("LUA_PATH") or "",
-        LUA_CPATH             = util.getenv("LUA_CPATH") or "",
+        LUA_PATH              = lua_path,
+        LUA_CPATH             = lua_cpath,
         LUAKIT_TEST_HTTP_PORT = http_port and tostring(http_port) or "",
     }
 
@@ -180,7 +203,12 @@ local function do_async_tests(test_files)
                 log_test_output(line)
             end
         end
-        f:close()
+        local ok, exit_type, code = f:close()
+        if not ok then
+            have_test_failures = true
+            update_test_status("fail", current_test_name or "process exit", test_file)
+            log_test_output(string.format("Process terminated abnormally (%s %s)", tostring(exit_type), tostring(code)))
+        end
     end
 end
 
@@ -226,7 +254,7 @@ end
 
 -- Launch Xvfb for lifetime of test runner
 print("Starting Xvfb")
-local pid_xvfb = assert(util.spawn_async({"Xvfb", xvfb_display, "-screen", "0", "800x600x8"}))
+local pid_xvfb = assert(util.spawn_async({"Xvfb", xvfb_display, "-screen", "0", "1024x768x24"}))
 table.insert(exit_handlers, function ()
     print("Stopping Xvfb")
     util.kill(pid_xvfb)
