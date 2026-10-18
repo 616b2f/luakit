@@ -118,6 +118,9 @@ local function do_test_file(test_file)
 
     wait_timer:add_signal("timeout", function ()
         wait_timer:stop()
+        if shared_lib.reset_waiting then
+            shared_lib.reset_waiting()
+        end
         print("__fail__ " .. current_test)
         if waiting_signal then
             waiting_signal.obj:remove_signal(waiting_signal.sig, waiting_signal.fn)

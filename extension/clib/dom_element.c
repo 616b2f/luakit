@@ -548,62 +548,52 @@ luaH_dom_element_remove_event_listener(lua_State *L)
 }
 
 static gint
-luaH_dom_element_push_src(lua_State *L)
+luaH_dom_element_push_property(lua_State *L, const gchar *property)
 {
     dom_element_t *element = luaH_check_dom_element(L, 1);
-    JSCValue *src = jsc_value_object_get_property(element->element, "src");
-    if (!jsc_value_is_undefined(src) && !jsc_value_is_null(src)) {
-        gchar *str = jsc_value_to_string(src);
-        lua_pushstring(L, str);
-        g_free(str);
-        g_object_unref(src);
-        return 1;
-    }
-    g_object_unref(src);
-    return 0;
+    JSCValue *value = jsc_value_object_get_property(element->element, property);
+    gint ret = luajs_pushvalue(L, value);
+    g_object_unref(value);
+    return ret;
 }
 
 static gint
-luaH_dom_element_push_href(lua_State *L)
+luaH_dom_element_push_attribute_val(lua_State *L, const gchar *attribute)
 {
     dom_element_t *element = luaH_check_dom_element(L, 1);
-    JSCValue *href = jsc_value_object_get_property(element->element, "href");
-    if (!jsc_value_is_undefined(href) && !jsc_value_is_null(href)) {
-        gchar *str = jsc_value_to_string(href);
-        lua_pushstring(L, str);
-        g_free(str);
-        g_object_unref(href);
-        return 1;
-    }
-    g_object_unref(href);
-    return 0;
+    JSCValue *value = jsc_value_object_invoke_method(element->element, "getAttribute", G_TYPE_STRING, attribute, G_TYPE_NONE);
+    gint ret = luajs_pushvalue(L, value);
+    g_object_unref(value);
+    return ret;
 }
 
 static gint
-luaH_dom_element_push_value(lua_State *L)
+luaH_dom_element_push_element(lua_State *L, const gchar *property)
 {
     dom_element_t *element = luaH_check_dom_element(L, 1);
-    JSCValue *val = jsc_value_object_get_property(element->element, "value");
-    if (!jsc_value_is_undefined(val) && !jsc_value_is_null(val)) {
-        gchar *str = jsc_value_to_string(val);
-        lua_pushstring(L, str);
-        g_free(str);
+    JSCValue *e = jsc_value_object_get_property(element->element, property);
+    if (!e || jsc_value_is_null(e) || jsc_value_is_undefined(e)) {
+        if (e) g_object_unref(e);
+        lua_pushnil(L);
+        return 1;
+    }
+    gint ret = luaH_dom_element_from_node(L, e);
+    g_object_unref(e);
+    return ret;
+}
+
+static gint
+luaH_dom_element_push_type(lua_State *L)
+{
+    dom_element_t *element = luaH_check_dom_element(L, 1);
+    JSCValue *val = jsc_value_object_get_property(element->element, "type");
+    if (val && !jsc_value_is_undefined(val) && !jsc_value_is_null(val)) {
+        gint ret = luajs_pushvalue(L, val);
         g_object_unref(val);
-        return 1;
+        return ret;
     }
-    g_object_unref(val);
-    return 0;
-}
-
-static gint
-dom_html_element_set_value(lua_State *L, dom_element_t *element)
-{
-    const gchar *value = luaL_checkstring(L, 3);
-    JSCContext *ctx = jsc_value_get_context(element->element);
-    JSCValue *val_obj = jsc_value_new_string(ctx, value);
-    jsc_value_object_set_property(element->element, "value", val_obj);
-    g_object_unref(val_obj);
-    return 1;
+    if (val) g_object_unref(val);
+    return luaH_dom_element_push_attribute_val(L, "type");
 }
 
 static gint
@@ -695,47 +685,15 @@ luaH_dom_element_index(lua_State *L)
         case L_TK_RECT: return luaH_dom_element_push_rect_table(L);
         case L_TK_ATTR: return luaH_dom_element_push_attribute_table(L);
         case L_TK_STYLE: return luaH_dom_element_push_style_table(L);
-        case L_TK_PARENT: {
-            JSCValue *parent = jsc_value_object_get_property(element->element, "parentNode");
-            gint ret = luaH_dom_element_from_node(L, parent);
-            g_object_unref(parent);
-            return ret;
-        }
-        case L_TK_TAG_NAME: {
-            JSCValue *tag = jsc_value_object_get_property(element->element, "tagName");
-            gchar *str = jsc_value_to_string(tag);
-            lua_pushstring(L, str);
-            g_free(str);
-            g_object_unref(tag);
-            return 1;
-        }
-        case L_TK_TEXT_CONTENT: {
-            JSCValue *text = jsc_value_object_get_property(element->element, "textContent");
-            gchar *str = jsc_value_to_string(text);
-            lua_pushstring(L, str);
-            g_free(str);
-            g_object_unref(text);
-            return 1;
-        }
-        case L_TK_CHILD_COUNT: {
-            JSCValue *count = jsc_value_object_get_property(element->element, "childElementCount");
-            gint32 val = jsc_value_to_int32(count);
-            lua_pushinteger(L, val);
-            g_object_unref(count);
-            return 1;
-        }
-        case L_TK_FIRST_CHILD: {
-            JSCValue *first = jsc_value_object_get_property(element->element, "firstElementChild");
-            gint ret = luaH_dom_element_from_node(L, first);
-            g_object_unref(first);
-            return ret;
-        }
-        case L_TK_NEXT_SIBLING: {
-            JSCValue *next = jsc_value_object_get_property(element->element, "nextElementSibling");
-            gint ret = luaH_dom_element_from_node(L, next);
-            g_object_unref(next);
-            return ret;
-        }
+        case L_TK_PARENT: return luaH_dom_element_push_element(L, "parentElement");
+        case L_TK_TAG_NAME: return luaH_dom_element_push_property(L, "tagName");
+        case L_TK_TEXT_CONTENT: return luaH_dom_element_push_property(L, "textContent");
+        case L_TK_INNER_HTML: return luaH_dom_element_push_property(L, "innerHTML");
+        case L_TK_CHILD_COUNT: return luaH_dom_element_push_property(L, "childElementCount");
+        case L_TK_FIRST_CHILD: return luaH_dom_element_push_element(L, "firstElementChild");
+        case L_TK_LAST_CHILD: return luaH_dom_element_push_element(L, "lastElementChild");
+        case L_TK_PREV_SIBLING: return luaH_dom_element_push_element(L, "previousElementSibling");
+        case L_TK_NEXT_SIBLING: return luaH_dom_element_push_element(L, "nextElementSibling");
         case L_TK_OWNER_DOCUMENT: {
             JSCValue *doc = jsc_value_object_get_property(element->element, "ownerDocument");
             gint ret = luaH_dom_document_from_webkit_dom_document(L, doc);
@@ -751,9 +709,11 @@ luaH_dom_element_index(lua_State *L)
             if (doc) g_object_unref(doc);
             return ret;
         }
-        case L_TK_VALUE: return luaH_dom_element_push_value(L);
-        case L_TK_SRC: return luaH_dom_element_push_src(L);
-        case L_TK_HREF: return luaH_dom_element_push_href(L);
+        case L_TK_VALUE: return luaH_dom_element_push_property(L, "value");
+        case L_TK_SRC: return luaH_dom_element_push_property(L, "src");
+        case L_TK_HREF: return luaH_dom_element_push_property(L, "href");
+        case L_TK_CHECKED: return luaH_dom_element_push_property(L, "checked");
+        case L_TK_TYPE: return luaH_dom_element_push_type(L);
         default: return 0;
     }
 }
@@ -765,12 +725,23 @@ luaH_dom_element_newindex(lua_State *L)
     const char *prop = luaL_checkstring(L, 2);
     luakit_token_t token = l_tokenize(prop);
 
+    const char *name;
     switch(token) {
-        case L_TK_VALUE:
-            return dom_html_element_set_value(L, element);
-        default:
-            return 0;
+        case L_TK_INNER_HTML: name = "innerHTML"; break;
+        case L_TK_VALUE:      name = "value";     break;
+        case L_TK_CHECKED:    name = "checked";   break;
+        default: return 0;
     }
+
+    JSCValue *ref = element->element;
+    JSCValue *value = luajs_tovalue(L, 3, jsc_value_get_context(ref));
+    if (!value)
+        return luaL_error(L, "failed to convert the Lua value to JavaScript");
+
+    jsc_value_object_set_property(ref, name, value);
+    g_object_unref(value);
+
+    return luaH_object_property_signal(L, 1, token);
 }
 
 void

@@ -79,6 +79,8 @@ typedef struct {
 
 #define luaH_checkwvdata(L, udx) ((webview_data_t*)(luaH_checkwebview(L, udx)->data))
 
+static WebKitWebView *related_view = NULL;
+
 static struct {
     GSList *refs;
     GSList *old_refs;
@@ -275,7 +277,10 @@ load_failed_cb(WebKitWebView* UNUSED(v), WebKitLoadEvent UNUSED(e),
     update_uri(w, failing_uri);
 
     lua_State *L = common.L;
-    ((webview_data_t*) w->data)->is_failed = TRUE;
+    if (!g_error_matches(error, WEBKIT_NETWORK_ERROR, WEBKIT_NETWORK_ERROR_CANCELLED) &&
+        !g_error_matches(error, WEBKIT_POLICY_ERROR, WEBKIT_POLICY_ERROR_FRAME_LOAD_INTERRUPTED_BY_POLICY_CHANGE))
+        ((webview_data_t*) w->data)->is_failed = TRUE;
+
     luaH_object_push(L, w->ref);
     lua_pushstring(L, "failed");
     lua_pushstring(L, failing_uri);
@@ -434,15 +439,18 @@ load_changed_cb(WebKitWebView* UNUSED(v), WebKitLoadEvent e, widget_t *w)
 
 
 static GtkWidget*
-create_cb(WebKitWebView* UNUSED(v), WebKitNavigationAction* UNUSED(a), widget_t *w)
+create_cb(WebKitWebView* v, WebKitNavigationAction* UNUSED(a), widget_t *w)
 {
     WebKitWebView *view = NULL;
     widget_t *new;
 
+    g_assert(!related_view);
+    related_view = v;
     lua_State *L = common.L;
     gint top = lua_gettop(L);
     luaH_object_push(L, w->ref);
     gint ret = luaH_object_emit_signal(L, -1, "create-web-view", 0, 1);
+    related_view = NULL;
 
     /* check for new webview widget */
     if (ret) {
@@ -1444,18 +1452,26 @@ widget_webview(lua_State *L, widget_t *w, luakit_token_t UNUSED(token))
 
     /* create widgets */
     d->user_content = webkit_user_content_manager_new();
-    WebKitNetworkSession *session = NULL;
-    if (d->private) {
-        session = webkit_network_session_new_ephemeral();
+    if (related_view) {
+        d->view = g_object_new(WEBKIT_TYPE_WEB_VIEW,
+                     "related-view", related_view,
+                     "user-content-manager", d->user_content,
+                     NULL);
+        d->private = webkit_network_session_is_ephemeral(webkit_web_view_get_network_session(related_view));
     } else {
-        session = web_network_session_get();
+        WebKitNetworkSession *session = NULL;
+        if (d->private) {
+            session = webkit_network_session_new_ephemeral();
+        } else {
+            session = web_network_session_get();
+        }
+        d->view = g_object_new(WEBKIT_TYPE_WEB_VIEW,
+                     "web-context", web_context_get(),
+                     "network-session", session,
+                     "user-content-manager", d->user_content,
+                     NULL);
+        g_object_unref(session);
     }
-    d->view = g_object_new(WEBKIT_TYPE_WEB_VIEW,
-                 "web-context", web_context_get(),
-                 "network-session", session,
-                 "user-content-manager", d->user_content,
-                 NULL);
-    g_object_unref(session);
 
     GdkRGBA white = { 1.0, 1.0, 1.0, 1.0 };
     webkit_web_view_set_background_color(d->view, &white);

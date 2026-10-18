@@ -37,16 +37,19 @@ T.test_image_css = function ()
     wait_for_view(view)
     assert.is_true(view.stylesheets[image_ss])
 
+    test.wait_until(function () return view:can_go_back() end)
     view:go_back(1)
-    test.delay(200)
+    test.wait_for_view(view)
     assert.is_false(view.stylesheets[image_ss])
 
+    test.wait_until(function () return view:can_go_forward() end)
     view:go_forward(1)
-    test.delay(200)
+    test.wait_for_view(view)
     assert.is_true(view.stylesheets[image_ss])
 
+    test.wait_until(function () return view:can_go_back() end)
     view:go_back(1)
-    test.delay(200)
+    test.wait_for_view(view)
     assert.is_false(view.stylesheets[image_ss])
 end
 

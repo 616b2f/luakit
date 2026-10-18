@@ -10,10 +10,12 @@ local find_files = require "build-utils.find_files"
 local _M = {}
 
 local shared_lib = nil
+local waiting = false
 
 function _M.init(arg)
     _M.init = nil
     shared_lib = arg
+    shared_lib.reset_waiting = function () waiting = false end
 end
 
 --- Pause test execution until the next idle event in the main event loop.
@@ -24,10 +26,10 @@ end
 -- initializations) are executed before subsequent test code runs.
 --
 -- Does nothing if called outside of the test context.
-function _M.wait_for_idle()
+function _M.wait_for_idle(timeout)
     local luakit = require "luakit"
     luakit.idle_add(_M.continue)
-    _M.wait()
+    _M.wait(timeout or 5000)
 end
 
 --- Pause test execution until a webview widget finishes loading.
@@ -37,11 +39,14 @@ function _M.wait_for_view(view)
     assert(type(view) == "widget" and view.type == "webview")
     shared_lib.traceback = debug.traceback("",2)
     repeat
-        local _, status = _M.wait_for_signal(view, "load-status", 5000)
+        local _, status, uri, err = _M.wait_for_signal(view, "load-status", 5000)
         if status == "failed" then
-            local fmt = "tests.wait_for_view() failed loading '%s'"
-            local msg = fmt:format(view.uri or "")
-            assert(false, msg)
+            local err_msg = type(err) == "table" and err.message or tostring(err)
+            local err_code = type(err) == "table" and err.code or ""
+            if err_msg ~= "Load request cancelled" and err_code ~= "WebKitNetworkError-302" then
+                local fmt = "tests.wait_for_view() failed loading '%s': %s"
+                assert(false, fmt:format(uri or view.uri or "", err_msg))
+            end
         end
     until status == "finished"
 end
@@ -109,8 +114,6 @@ function _M.wait_for_signal(object, signal, timeout)
     timeout = timeout or 200
     return coroutine.yield({object, signal, timeout=timeout})
 end
-
-local waiting = false
 
 --- Pause test execution indefinitely.
 --

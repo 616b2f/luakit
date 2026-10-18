@@ -53,7 +53,7 @@ local function fill_input(inputs, value)
         assert(type(input) == "dom_element")
         if input.type == "radio" or input.type == "checkbox" then
             -- Click the input if it isn't already in the desired state
-            local checked = input.checked == "checked"
+            local checked = input.checked == true or input.checked == "checked"
             if value and value ~= checked then
                 input:click()
             end

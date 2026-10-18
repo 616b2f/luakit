@@ -29,10 +29,19 @@ f:close()
 -- Reload adblock to load the new rules
 adblock.load(true)
 
+local initial_loaded = false
+local function ensure_initial_page()
+    test.wait_for_idle()
+    if not initial_loaded then
+        test.wait_for_view(w.view)
+        initial_loaded = true
+    end
+end
+
 local T = {}
 
 T.test_adblock_blocking = function ()
-    test.wait_for_idle()
+    ensure_initial_page()
     adblock.clear_page_whitelist()
     adblock.enabled = true
     test.delay(500) -- Allow rules update to propagate to web process
@@ -46,7 +55,7 @@ T.test_adblock_blocking = function ()
 end
 
 T.test_adblock_whitelisting = function ()
-    test.wait_for_idle()
+    ensure_initial_page()
     adblock.clear_page_whitelist()
     adblock.enabled = true
     test.delay(500)
@@ -65,7 +74,7 @@ T.test_adblock_whitelisting = function ()
 end
 
 T.test_adblock_disabled = function ()
-    test.wait_for_idle()
+    ensure_initial_page()
     adblock.clear_page_whitelist()
     adblock.enabled = false
     test.delay(500)

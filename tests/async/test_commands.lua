@@ -75,18 +75,14 @@ T.test_command_javascript = function ()
     -- Test :javascript command
     w:run_cmd(":js window.luakit_test_var = 12345")
     test.wait_for_idle()
-    test.delay(500)
 
-    -- Read back the variable using eval_js (poll until async IPC eval completes)
+    -- Read back the variable using eval_js
     local val, err
-    test.wait_until(function ()
-        w.view:eval_js("window.luakit_test_var", { callback = function (res, e)
-            val, err = res, e
-            test.continue()
-        end })
-        test.wait(2000)
-        return val == 12345
-    end, 50, 5000)
+    w.view:eval_js("window.luakit_test_var", { callback = function (res, e)
+        val, err = res, e
+        test.continue()
+    end })
+    test.wait(5000)
     assert.is_nil(err)
     assert.equal(12345, val)
 end

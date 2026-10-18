@@ -65,19 +65,25 @@ luaH_clipboard_get(lua_State *L, gint idx)
 
 
 /** __newindex metamethod for the luakit.selection table which
- * sets an X selection.
- * \see http://en.wikipedia.org/wiki/X_Window_selection
- * \see http://developer.gnome.org/gtk/stable/gtk-Clipboards.html#gtk-clipboard-set-text
+ * sets an X11 / Wayland selection.
+ * \see https://docs.gtk.org/gdk4/class.Clipboard.html
  *
  * \param  L The Lua VM state.
  * \return   The number of elements pushed on stack (0).
  *
+ * Setting selection remains synchronous:
  * \lcode
  * luakit.selection.primary = "Malcolm Reynolds"
  * luakit.selection.clipboard = "John Crichton"
- * print(luakit.selection.primary) // outputs "Malcolm Reynolds"
  * luakit.selection.primary = nil  // clears the primary selection
- * print(luakit.selection.primary) // outputs nothing
+ * \endcode
+ *
+ * NOTE: In GTK4, reading the clipboard/primary selection is strictly asynchronous.
+ * To read selections, use `luakit.selection.get(target, callback)`:
+ * \lcode
+ * luakit.selection.get("clipboard", function (text)
+ *     if text then print("Clipboard:", text) end
+ * end)
  * \endcode
  */
 static gint
@@ -102,9 +108,6 @@ luaH_luakit_selection_get_cb(GObject *src, GAsyncResult *res, gpointer data)
 
     char *text = gdk_clipboard_read_text_finish(GDK_CLIPBOARD(src), res, NULL);
 
-    /* Push callback function onto stack */
-    luaH_object_push(L, cb_ref);
-
     /* Push callback argument (text or nil) */
     if (text) {
         lua_pushstring(L, text);
@@ -113,10 +116,27 @@ luaH_luakit_selection_get_cb(GObject *src, GAsyncResult *res, gpointer data)
         lua_pushnil(L);
     }
 
+    /* Push callback function onto stack (luaH_dofunction expects function on top) */
+    luaH_object_push(L, cb_ref);
+
     luaH_dofunction(L, 1, 0);
     luaH_object_unref(L, cb_ref);
 }
 
+/** Asynchronously get the contents of an X11 / Wayland selection.
+ *
+ * \luastack
+ * \lparam target The selection to read: `"clipboard"` or `"primary"`.
+ * \lparam callback Function called with the selection text (or `nil` if empty).
+ *
+ * \lcode
+ * luakit.selection.get("clipboard", function (text)
+ *     if text then
+ *         print("Clipboard text: " .. text)
+ *     end
+ * end)
+ * \endcode
+ */
 static gint
 luaH_luakit_selection_get(lua_State *L)
 {

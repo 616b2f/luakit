@@ -182,7 +182,7 @@ widget_box(lua_State *UNUSED(L), widget_t *w, luakit_token_t token)
     gtk_widget_set_halign(w->widget, GTK_ALIGN_FILL);
     gtk_widget_set_valign(w->widget, GTK_ALIGN_FILL);
 
-    gtk_box_set_homogeneous(GTK_BOX(w->widget), (token == L_TK_VBOX) ? FALSE : TRUE);
+    gtk_box_set_homogeneous(GTK_BOX(w->widget), (token == L_TK_HBOX) ? TRUE : FALSE);
 
     g_object_connect(G_OBJECT(w->widget),
       LUAKIT_WIDGET_SIGNAL_COMMON(w)

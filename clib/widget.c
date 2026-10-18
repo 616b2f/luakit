@@ -34,6 +34,7 @@ static property_t widget_properties[] = {
 
 static widget_info_t widgets_list[] = {
   { L_TK_ENTRY,     "entry",    widget_entry    },
+  { L_TK_EVENTBOX,  "eventbox", widget_box      },
   { L_TK_HBOX,      "hbox",     widget_box      },
   { L_TK_HPANED,    "hpaned",   widget_paned    },
   { L_TK_LABEL,     "label",    widget_label    },

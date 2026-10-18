@@ -125,3 +125,50 @@ and the ability to use `@-moz-document` rules in your stylesheets.
    do this is to use `@-moz-document` rules. The Stylish wiki page [Applying styles to specific sites](https://github.com/stylish-userstyles/stylish/wiki/Applying-styles-to-specific-sites) may be helpful.
 5. Run `:styles-reload` to detect new stylesheet files and reload any changes to
    existing stylesheet files; it isn't necessary to restart luakit.
+
+## Migrating to GTK4 and WebKitGTK 6.0
+
+The GTK4 rewrite modernizes Luakit to use GTK4 and WebKitGTK 6.0. Several GTK3 APIs have changed or been replaced.
+
+### Asynchronous Clipboard API (`luakit.selection.get`)
+
+In GTK3, reading the system clipboard or primary selection was synchronous:
+
+```lua
+-- Old (GTK3): Synchronous read
+local text = luakit.selection.clipboard
+local primary = luakit.selection.primary
+```
+
+In GTK4, `GtkClipboard` and synchronous `gtk_clipboard_wait_for_text` were removed by GTK in favor of `GdkClipboard`. As a result, reading clipboard selections in Luakit is now **strictly asynchronous**. Attempting to read `luakit.selection.clipboard` or `luakit.selection.primary` directly as a table field will return `nil`.
+
+#### How to Migrate
+
+Use the asynchronous `luakit.selection.get(target, callback)` function instead:
+
+```lua
+-- New (GTK4): Asynchronous read
+luakit.selection.get("clipboard", function (text)
+    if text and text ~= "" then
+        w:notify("Clipboard: " .. text)
+    end
+end)
+
+luakit.selection.get("primary", function (text)
+    if text and text ~= "" then
+        -- Use primary selection
+    end
+end)
+```
+
+Setting selections remains synchronous and unchanged:
+
+```lua
+luakit.selection.clipboard = "text"
+luakit.selection.primary = "text"
+luakit.selection.clipboard = nil  -- clears clipboard
+```
+
+### Eventbox Widget Compatibility
+
+GTK4 removed `GtkEventBox` because all GTK4 widgets natively support input event controllers and gestures. For backward compatibility with user configurations and plugins, `widget{type="eventbox"}` is aliased to a box container widget, preserving container properties such as `.child` and `.bg`.

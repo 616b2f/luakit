@@ -34,6 +34,16 @@ T.test_webview_widget_privacy = function ()
     assert.is_true(v.private)
 end
 
+T.test_eventbox_widget_alias = function ()
+    local eb = widget{type="eventbox"}
+    assert.is_not_nil(eb)
+    local child = widget{type="label"}
+    eb.child = child
+    assert.is_equal(eb.child, child)
+    eb.bg = "#123456"
+    assert.is_equal("#123456", eb.bg)
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80

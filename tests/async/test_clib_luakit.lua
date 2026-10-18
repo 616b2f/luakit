@@ -125,6 +125,19 @@ T.test_luakit_install_paths = function ()
     end
 end
 
+T.test_luakit_selection_async = function ()
+    assert.is_table(luakit.selection)
+    assert.is_function(luakit.selection.get)
+    luakit.selection.clipboard = "test_clipboard_content"
+    local received
+    luakit.selection.get("clipboard", function (text)
+        received = text
+        test.continue()
+    end)
+    test.wait(2000)
+    assert.is_equal("test_clipboard_content", received)
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80
