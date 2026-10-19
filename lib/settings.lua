@@ -286,7 +286,7 @@ _M.get_setting_for_view = function (view, key)
     -- domain-specific values
     if uri ~= uri_domain_cache.uri then
         uri_domain_cache.uri = uri
-        uri_domain_cache.domains = lousy.uri.domains_from_uri(uri)
+        uri_domain_cache.domains = uri and lousy.uri.domains_from_uri(uri) or {}
     end
     local domains = uri_domain_cache.domains
     for _, domain in ipairs(domains) do

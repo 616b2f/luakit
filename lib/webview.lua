@@ -758,7 +758,7 @@ _M.add_signal("init", function (view)
     end
     -- Set domain-specific values on page load
     view:add_signal("load-status", function (v, status)
-        if v.uri == "about:blank" then
+        if not v.uri or v.uri == "about:blank" then
             return
         elseif status == "provisional" or status == "redirected" then
             local val, match = settings.get_setting_for_view(v, "webview.user_agent")
