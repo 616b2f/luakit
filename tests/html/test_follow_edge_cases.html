@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Follow Edge Cases</title>
+</head>
+<body>
+  <h1>Follow Edge Cases Test Page</h1>
+  <p>Links:</p>
+  <a href="#first" id="link1">Alpha Link</a><br/>
+  <a href="#second" id="link2">Beta Link</a><br/>
+
+  <p>Form with Label Elements (Issue #1080):</p>
+  <form id="test_form">
+    <label for="username_inp" id="user_label">User Account:</label>
+    <input type="text" id="username_inp" name="username" /><br/>
+    <label for="newsletter_cb" id="cb_label">Subscribe:</label>
+    <input type="checkbox" id="newsletter_cb" name="newsletter" /><br/>
+  </form>
+
+  <p>Nested Iframe:</p>
+  <iframe id="test_iframe" src="/test_follow.html" width="400" height="250"></iframe>
+</body>
+</html>

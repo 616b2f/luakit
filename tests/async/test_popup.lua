@@ -17,6 +17,7 @@ T.test_popup_window_opener_preserved = function ()
     settings.set_setting("webview.javascript_can_open_windows_automatically", true)
     test.wait_for_idle()
     local w = assert(select(2, next(window.bywidget)))
+    w.view.javascript_can_open_windows_automatically = true
     test.wait_for_view(w.view)
 
     local initial_tab_count = #w.tabs
