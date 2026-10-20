@@ -106,6 +106,40 @@ T.test_follow_iframe_elements_hinted = function ()
     assert.equal("normal", w.mode.name)
 end
 
+T.test_follow_changed_after_exit_race_no_crash = function ()
+    local w = assert(select(2, next(window.bywidget)))
+    ensure_page(w)
+
+    -- Enter follow mode
+    w:hit({}, "f")
+    test.wait_for_idle()
+    assert.equal("follow", w.mode and w.mode.name)
+
+    -- Immediately exit follow mode
+    w:set_mode()
+    test.wait_for_idle()
+    assert.equal("normal", w.mode.name)
+
+    -- Simulate trailing/asynchronous IPC signals arriving after mode exit
+    local follow_ipc = ipc_channel("follow_wm")
+    follow_ipc:emit_signal(w.view, "changed", "1", "1", "1")
+    follow_ipc:emit_signal(w.view, "focus", 1)
+    follow_ipc:emit_signal(w.view, "trigger_follow", false)
+    test.wait_for_idle()
+    test.delay(100)
+
+    -- Verify follow mode can be re-entered without corruption
+    w:hit({}, "f")
+    test.wait_for_idle()
+    assert.equal("follow", w.mode and w.mode.name)
+    local count = wait_for_hints_at_least(w.view, 4)
+    assert.is_true(count >= 4)
+
+    w:set_mode()
+    test.wait_for_idle()
+    assert.equal("normal", w.mode.name)
+end
+
 return T
 
 -- vim: et:sw=4:ts=8:sts=4:tw=80

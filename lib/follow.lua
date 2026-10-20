@@ -191,6 +191,7 @@ _M.pattern_maker = _M.pattern_styles.match_label_re_text
 _M.ignore_case = true
 
 local function focus(w, step)
+    if not w.follow_state or w.follow_state.closing then return end
     follow_wm:emit_signal(w.view, "focus", step)
 end
 
@@ -210,6 +211,9 @@ local function ignore_keys(w)
 end
 
 local function do_follow(w, all)
+    if w.follow_state and not (w.follow_state.mode and w.follow_state.mode.persist) then
+        w.follow_state.closing = true
+    end
     follow_wm:emit_signal(w.view, "follow", all)
 end
 
@@ -257,6 +261,7 @@ follow_wm:add_signal("matches", function(_, page_id, pid, n)
             matches_cb(w, total_matches)
 
             if total_matches == 1 and w.follow_state.current_text ~= "" then
+                w.follow_state.closing = true
                 follow_wm:emit_signal(w.view, "trigger_follow", false)
             end
         end
@@ -344,6 +349,7 @@ new_mode("follow", {
     end,
 
     changed = function (w, text)
+        if not w.follow_state or w.follow_state.closing then return end
         local mode = w.follow_state.mode
         w.follow_state.current_text = text
 
@@ -356,6 +362,7 @@ new_mode("follow", {
 
     leave = function (w)
         w:set_ibar_theme()
+        w.follow_state = nil
         follow_wm:emit_signal(w.view, "leave")
     end,
 })

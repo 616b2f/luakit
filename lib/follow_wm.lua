@@ -156,10 +156,10 @@ local function follow(page, all)
     if #hints == 0 then return end
 
     -- Close hint select UI first if not persisting in follow mode
-    local mode = page_mode[page]
+    local mode = page_mode[page.id]
     if mode and not mode.persist then
         select.leave(page)
-        page_mode[page] = nil
+        page_mode[page.id] = nil
     end
 
     -- Follow hints in idle cb to ensure select UI is closed if necessary
@@ -171,29 +171,34 @@ local function follow(page, all)
 end
 
 ui:add_signal("follow", function(_, page, all)
-    follow(page, all)
+    if page_mode[page.id] then
+        follow(page, all)
+    end
 end)
 
 ui:add_signal("focus", function(_, page, step)
-    select.focus(page, step)
+    if page_mode[page.id] then
+        select.focus(page, step)
+    end
 end)
 
 ui:add_signal("enter", function(_, page, mode, ignore_case)
-    page_mode[page] = mode
+    page_mode[page.id] = mode
     select.enter(page, mode.selector, mode.stylesheet, ignore_case)
 
-    local num_visible_hints = #(select.hints(page))
+    local hints = select.hints(page)
+    local num_visible_hints = hints and #hints or 0
     ui:emit_signal("matches", page.id, getpid(), num_visible_hints)
 end)
 
 ui:add_signal("init_follow", function(_, page, mode, ignore_case)
-    page_mode[page] = mode
+    page_mode[page.id] = mode
     local num_elements = select.scan(page, mode.selector, ignore_case)
     ui:emit_signal("ready", page.id, getpid(), num_elements)
 end)
 
 ui:add_signal("start_follow", function(_, page, target_pid, start_idx, count, stylesheet)
-    if getpid() == target_pid then
+    if getpid() == target_pid and page_mode[page.id] then
         local total_labels_needed = start_idx + count - 1
         local all_labels = select.make_labels(total_labels_needed)
         local labels = {}
@@ -201,22 +206,27 @@ ui:add_signal("start_follow", function(_, page, target_pid, start_idx, count, st
             labels[i] = all_labels[start_idx + i - 1]
         end
         local _, num_visible_hints = select.show_hints(page, labels, stylesheet)
-        ui:emit_signal("matches", page.id, getpid(), num_visible_hints)
+        ui:emit_signal("matches", page.id, getpid(), num_visible_hints or 0)
     end
 end)
 
 ui:add_signal("changed", function(_, page, hint_pat, text_pat, text)
+    if not page_mode[page.id] then return end
     local _, num_visible_hints = select.changed(page, hint_pat, text_pat, text)
-    ui:emit_signal("matches", page.id, getpid(), num_visible_hints)
+    if num_visible_hints then
+        ui:emit_signal("matches", page.id, getpid(), num_visible_hints)
+    end
 end)
 
 ui:add_signal("trigger_follow", function(_, page, all)
-    follow(page, all)
+    if page_mode[page.id] then
+        follow(page, all)
+    end
 end)
 
 ui:add_signal("leave", function (_, page)
-    if page_mode[page] then
-        page_mode[page] = nil
+    if page_mode[page.id] then
+        page_mode[page.id] = nil
         select.leave(page)
     end
 end)

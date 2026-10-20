@@ -557,6 +557,9 @@ _M.show_hints = function (page, labels, stylesheet)
             cleanup_frame(frame)
         end)
     end
+    page:add_signal("destroy", function ()
+        _M.leave(page)
+    end)
 
     filter(state, "", "")
     return focus(state, 0), state.num_visible_hints
@@ -572,7 +575,9 @@ _M.enter = function (page, elements, stylesheet, ignore_case)
     assert(type(elements) == "string" or type(elements) == "table")
     assert(type(stylesheet) == "string")
     local page_id = page.id
-    assert(page_states[page_id] == nil)
+    if page_states[page_id] then
+        _M.leave(page)
+    end
 
     local root = page.document
     local state = {}
@@ -668,6 +673,9 @@ _M.enter = function (page, elements, stylesheet, ignore_case)
             cleanup_frame(frame)
         end)
     end
+    page:add_signal("destroy", function ()
+        _M.leave(page)
+    end)
 
     filter(state, "", "")
     return focus(state, 0), state.num_visible_hints
@@ -707,7 +715,8 @@ function _M.changed(page, hint_pat, text_pat, text)
     assert(text_pat == nil or type(text_pat) == "string")
     assert(type(text) == "string")
 
-    local state = assert(page_states[page.id])
+    local state = page_states[page.id]
+    if not state then return nil, 0 end
 
     if state.ignore_case then
         local convert = function(pat)
@@ -743,7 +752,8 @@ end
 function _M.focus(page, step)
     assert(type(page) == "page")
     assert(type(step) == "number")
-    local state = assert(page_states[page.id])
+    local state = page_states[page.id]
+    if not state then return nil, 0 end
     return focus(state, step), state.num_visible_hints
 end
 
@@ -755,7 +765,8 @@ end
 -- @treturn table The current hint state for `page`.
 function _M.hints(page)
     assert(type(page) == "page")
-    local state = assert(page_states[page.id])
+    local state = page_states[page.id]
+    if not state then return {} end
     return state.hints
 end
 
@@ -767,7 +778,8 @@ end
 -- @treturn table The currently focused hint.
 function _M.focused_hint(page)
     assert(type(page) == "page")
-    local state = assert(page_states[page.id])
+    local state = page_states[page.id]
+    if not state or not state.focused then return nil end
     return state.hints[state.focused]
 end
 
