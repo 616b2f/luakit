@@ -179,6 +179,10 @@ luaH_webview_load_string(lua_State *L)
     webview_data_t *d = luaH_checkwvdata(L, 1);
     const gchar *string = luaL_checkstring(L, 2);
     const gchar *base_uri = luaL_checkstring(L, 3);
+    if (!g_object_get_data(G_OBJECT(d->view), "bg")) {
+        GdkRGBA white = { 1.0, 1.0, 1.0, 1.0 };
+        webkit_web_view_set_background_color(d->view, &white);
+    }
     webkit_web_view_load_alternate_html(d->view, string, base_uri, NULL);
     return 0;
 }
@@ -399,6 +403,11 @@ load_changed_cb(WebKitWebView* UNUSED(v), WebKitLoadEvent e, widget_t *w)
         ((webview_data_t*) w->data)->is_committed = FALSE;
     } else if (e == WEBKIT_LOAD_COMMITTED) {
         ((webview_data_t*) w->data)->is_committed = TRUE;
+        const gchar *uri = webkit_web_view_get_uri(d->view);
+        if (!g_object_get_data(G_OBJECT(d->view), "bg") && uri && uri[0] && g_strcmp0(uri, "about:blank") != 0) {
+            GdkRGBA white = { 1.0, 1.0, 1.0, 1.0 };
+            webkit_web_view_set_background_color(d->view, &white);
+        }
     } else if (e == WEBKIT_LOAD_FINISHED) {
         ((webview_data_t*) w->data)->is_committed = TRUE;
     }
@@ -1473,8 +1482,8 @@ widget_webview(lua_State *L, widget_t *w, luakit_token_t UNUSED(token))
         g_object_unref(session);
     }
 
-    GdkRGBA white = { 1.0, 1.0, 1.0, 1.0 };
-    webkit_web_view_set_background_color(d->view, &white);
+    GdkRGBA transparent = { 0.0, 0.0, 0.0, 0.0 };
+    webkit_web_view_set_background_color(d->view, &transparent);
     gtk_widget_set_visible(GTK_WIDGET(d->view), TRUE);
 
     d->inspector = webkit_web_view_get_inspector(d->view);

@@ -518,6 +518,7 @@ _M.methods = {
             view = webview.new({
                 private = opts.private,
             })
+            w:attach_tab(view, switch, order)
 
             if arg and arg.session_state then
                 view.session_state = arg.session_state
@@ -528,8 +529,6 @@ _M.methods = {
             if not arg and not opts.no_initial_url then
                 view.uri = settings.get_setting("window.new_tab_page")
             end
-            w:attach_tab(view, switch, order)
-
         end
 
         if switch ~= false then w.tabs:switch(w.tabs:indexof(view)) end
