@@ -55,6 +55,8 @@ _M.menu_binds = {
     { "<KP_Up>",     "Move the menu row focus upwards.",   function (w) w.menu:move_up()   end },
     { "<Tab>",       "Move the menu row focus downwards.", function (w) w.menu:move_down() end },
     { "<Shift-Tab>", "Move the menu row focus upwards.",   function (w) w.menu:move_up()   end },
+    { "<Control-n>", "Move the menu row focus downwards.", function (w) w.menu:move_down() end },
+    { "<Control-p>", "Move the menu row focus upwards.",   function (w) w.menu:move_up()   end },
 }
 
 local scroll_acc = 0

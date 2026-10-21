@@ -376,6 +376,10 @@ add_binds("formfiller-add", {
         function (w) formfiller_wm:emit_signal(w.view, "focus",  1) end },
     { "<Shift-Tab>",    "Focus the previous form hint.",
         function (w) formfiller_wm:emit_signal(w.view, "focus", -1) end },
+    { "<Control-n>",    "Focus the next form hint.",
+        function (w) formfiller_wm:emit_signal(w.view, "focus",  1) end },
+    { "<Control-p>",    "Focus the previous form hint.",
+        function (w) formfiller_wm:emit_signal(w.view, "focus", -1) end },
     { "<Return>", "Add the currently focused form to the formfiller file.",
         function (w) formfiller_wm:emit_signal(w.view, "select") end },
 })
