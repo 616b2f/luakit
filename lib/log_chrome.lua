@@ -24,6 +24,7 @@ _M.buffer_size = 500
 
 local log_views = {}
 local log_entries = {}
+local log_head, log_tail = 1, 0
 local append_timer = timer{interval = 100}
 
 --- HTML template for luakit log chrome page content.
@@ -134,7 +135,8 @@ end
 local sync_view = function (v)
     local unsynced_count = log_views[v].unsynced_count
     local rows = {}
-    for i=#log_entries-unsynced_count+1,#log_entries do
+    local start_idx = math.max(log_head, log_tail - unsynced_count + 1)
+    for i = start_idx, log_tail do
         rows[#rows+1] = build_log_entry_html(assert(log_entries[i]))
     end
     log_views[v].unsynced_count = 0
@@ -184,8 +186,8 @@ end)
 
 chrome.add("log", function (view)
     local rows = {}
-    for i, entry in ipairs(log_entries) do
-        rows[i] = build_log_entry_html(entry)
+    for i = log_head, log_tail do
+        rows[#rows+1] = build_log_entry_html(log_entries[i])
     end
 
     local html_subs = {
@@ -248,12 +250,13 @@ local function widget_click_cb(notif)
 end
 
 msg.add_signal("log", function (time, level, group, msg)
-    table.insert(log_entries, {
+    log_tail = log_tail + 1
+    log_entries[log_tail] = {
         time = time,
         level = level,
         group = group,
         msg = msg:gsub("^%l", function(c) return c:upper() end):gsub(string.char(27) .. '%[%d+m', '')
-    })
+    }
 
     if level == "warn" then
         warning_count = warning_count + 1
@@ -270,7 +273,10 @@ msg.add_signal("log", function (time, level, group, msg)
     if next(log_views) and not append_timer.started then
         append_timer:start()
     end
-    while #log_entries > _M.buffer_size do table.remove(log_entries, 1) end
+    while (log_tail - log_head + 1) > _M.buffer_size do
+        log_entries[log_head] = nil
+        log_head = log_head + 1
+    end
 end)
 
 --- Construct a new error/warning status bar widget.

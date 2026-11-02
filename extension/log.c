@@ -24,8 +24,24 @@
 
 #include <glib/gprintf.h>
 
+static log_level_t ext_max_log_level = LOG_LEVEL_info;
+
+void
+web_log_set_max_level(log_level_t lvl)
+{
+    ext_max_log_level = lvl;
+}
+
+gboolean
+log_level_might_be_logged(log_level_t lvl)
+{
+    return lvl <= ext_max_log_level;
+}
+
 void
 _log(log_level_t lvl, const gchar *fct, const gchar *fmt, ...) {
+    if (lvl > ext_max_log_level)
+        return;
     va_list ap;
     va_start(ap, fmt);
     va_log(lvl, fct, fmt, ap);
@@ -34,6 +50,8 @@ _log(log_level_t lvl, const gchar *fct, const gchar *fmt, ...) {
 
 void
 va_log(log_level_t lvl, const gchar *fct, const gchar *fmt, va_list ap) {
+    if (lvl > ext_max_log_level)
+        return;
     lua_State *L = common.L;
     gchar *msg = g_strdup_vprintf(fmt, ap);
 

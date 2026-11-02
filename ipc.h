@@ -30,6 +30,7 @@ typedef struct {
 
 struct widget_t;
 void ipc_associate_pending_webview(struct widget_t *w);
+void ipc_remove_page_endpoint(guint64 page_id);
 void ipc_init_socket(void);
 void ipc_init(void);
 void ipc_add_sandbox_paths(WebKitWebContext *);

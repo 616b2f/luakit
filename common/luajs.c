@@ -47,16 +47,15 @@ JSCValue *luajs_tovalue(lua_State *L, int idx, JSCContext *ctx)
 
             if (len) {
                 res = jsc_value_new_array(ctx, G_TYPE_NONE);
-                lua_pushnil(L);
-                int i = 0;
-                while (lua_next(L, idx)) {
+                for (size_t i = 1; i <= len; i++) {
+                    lua_rawgeti(L, idx, (int)i);
                     val = luajs_tovalue(L, -1, ctx);
                     if (!val) {
                         lua_settop(L, top);
                         g_object_unref(res);
                         return NULL;
                     }
-                    jsc_value_object_set_property_at_index(res, i++, val);
+                    jsc_value_object_set_property_at_index(res, (guint)(i - 1), val);
                     lua_pop(L, 1);
                     g_object_unref(val);
                 }
@@ -64,8 +63,10 @@ JSCValue *luajs_tovalue(lua_State *L, int idx, JSCContext *ctx)
                 res = jsc_value_new_object(ctx, NULL, NULL);
                 lua_pushnil(L);
                 while (lua_next(L, idx)) {
-                    if (lua_type(L, -2) != LUA_TSTRING)
+                    if (lua_type(L, -2) != LUA_TSTRING) {
+                        lua_pop(L, 1);
                         continue;
+                    }
                     val = luajs_tovalue(L, -1, ctx);
                     if (!val) {
                         lua_settop(L, top);

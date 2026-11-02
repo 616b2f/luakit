@@ -104,7 +104,9 @@ G_MODULE_EXPORT void
 webkit_web_process_extension_initialize_with_user_data(WebKitWebProcessExtension *ext, GVariant *payload)
 {
     gchar *socket_path, *package_path, *package_cpath;
-    g_variant_get(payload, "(sss)", &socket_path, &package_path, &package_cpath);
+    gint max_log_lvl = LOG_LEVEL_info;
+    g_variant_get(payload, "(sssi)", &socket_path, &package_path, &package_cpath, &max_log_lvl);
+    web_log_set_max_level((log_level_t)max_log_lvl);
 
     common.L = luaL_newstate();
     extension.ext = ext;

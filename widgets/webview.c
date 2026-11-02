@@ -401,6 +401,7 @@ load_changed_cb(WebKitWebView* UNUSED(v), WebKitLoadEvent e, widget_t *w)
 
     if (e == WEBKIT_LOAD_STARTED) {
         ((webview_data_t*) w->data)->is_committed = FALSE;
+        webview_clear_subframe_endpoints(w);
     } else if (e == WEBKIT_LOAD_COMMITTED) {
         ((webview_data_t*) w->data)->is_committed = TRUE;
         const gchar *uri = webkit_web_view_get_uri(d->view);
@@ -1318,6 +1319,11 @@ webview_destructor(widget_t *w)
         g_signal_handlers_disconnect_by_data(d->inspector, w);
     }
 
+    if (d->view) {
+        guint64 page_id = webkit_web_view_get_page_id(d->view);
+        ipc_remove_page_endpoint(page_id);
+    }
+
     g_assert(d->ipc);
     ipc_endpoint_decref(d->ipc);
     d->ipc = NULL;
@@ -1368,7 +1374,11 @@ webview_crashed_cb(WebKitWebView *UNUSED(view), WebKitWebProcessTerminationReaso
 {
     /* Give webview a new disconnected IPC endpoint */
     webview_data_t *d = w->data;
+    webview_clear_subframe_endpoints(w);
+    if (d->ipc)
+        ipc_endpoint_decref(d->ipc);
     d->ipc = ipc_endpoint_new("UI");
+    d->web_process_id = 0;
 
     /* Emit 'crashed' signal on web view */
     lua_State *L = common.L;
@@ -1555,25 +1565,38 @@ widget_webview(lua_State *L, widget_t *w, luakit_token_t UNUSED(token))
 }
 
 void
+webview_clear_subframe_endpoints(widget_t *w)
+{
+    g_assert(w->info->tok == L_TK_WEBVIEW);
+    webview_data_t *d = w->data;
+    if (d->subframe_ipcs && d->subframe_ipcs->len > 0) {
+        g_ptr_array_set_size(d->subframe_ipcs, 0);
+    }
+}
+
+void
 webview_add_subframe_endpoint(widget_t *w, ipc_endpoint_t *ipc)
 {
     g_assert(w->info->tok == L_TK_WEBVIEW);
     g_assert(ipc);
     webview_data_t *d = w->data;
 
-    /* Clean up any disconnected endpoints first */
-    if (d->subframe_ipcs) {
-        for (guint i = 0; i < d->subframe_ipcs->len; ) {
-            ipc_endpoint_t *item = g_ptr_array_index(d->subframe_ipcs, i);
-            if (item->status == IPC_ENDPOINT_DISCONNECTED) {
-                g_ptr_array_remove_index_fast(d->subframe_ipcs, i);
-            } else {
-                i++;
-            }
+    if (!d->subframe_ipcs || ipc == d->ipc)
+        return;
+
+    /* Clean up any disconnected endpoints first and check for duplicates */
+    for (guint i = 0; i < d->subframe_ipcs->len; ) {
+        ipc_endpoint_t *item = g_ptr_array_index(d->subframe_ipcs, i);
+        if (item->status == IPC_ENDPOINT_DISCONNECTED) {
+            g_ptr_array_remove_index_fast(d->subframe_ipcs, i);
+        } else {
+            if (item == ipc)
+                return;
+            i++;
         }
-        g_assert(ipc_endpoint_incref(ipc));
-        g_ptr_array_add(d->subframe_ipcs, ipc);
     }
+    if (ipc_endpoint_incref(ipc))
+        g_ptr_array_add(d->subframe_ipcs, ipc);
 }
 
 void

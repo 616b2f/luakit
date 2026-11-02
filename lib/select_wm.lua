@@ -32,6 +32,7 @@ local function utf8_rev (s)
 end
 
 local function charset(seq, size)
+    if size <= 0 then return {} end
     local base, digits, labels = utf8.len(seq), {}, {}
     for ch in seq:gmatch(utf8.charpattern) do digits[#digits+1] = ch end
 
@@ -76,6 +77,7 @@ local label_styles = {
             end
         end
         return function (size)
+            if size <= 0 then return {} end
             local function allstrings(n, t, k, s)
                 k, s = k or 1, s or {}
                 if k > n then
@@ -147,16 +149,19 @@ local label_styles = {
     trim = function (make_labels)
         return function (size)
             local labels = make_labels(size)
-            local P = {}
-            for _, l in ipairs(labels) do
+            local P, prefixes = {}, {}
+            for i, l in ipairs(labels) do
                 local p = l:gsub(utf8.charpattern.."$", "")
-                if #p > 0 then P[p] = (P[p] or 0) + 1 end
+                prefixes[i] = p
+                local cur = l
+                while #cur > 0 do
+                    P[cur] = (P[cur] or 0) + 1
+                    cur = cur:gsub(utf8.charpattern.."$", "")
+                end
             end
-            for p, count in pairs(P) do
-                if count == 1 then
-                    for i, l in ipairs(labels) do
-                        if l:sub(1, #p) == p then labels[i] = p end
-                    end
+            for i, p in ipairs(prefixes) do
+                if #p > 0 and P[p] == 1 then
+                    labels[i] = p
                 end
             end
             return labels
@@ -179,6 +184,220 @@ local function bounding_boxes_intersect(a, b)
     return true
 end
 
+local CLIENT_RECTS_JS = [=[
+    var rects = element.getClientRects();
+    if (rects.length == 0)
+        return undefined;
+    var rect = {
+        "top": rects[0].top,
+        "bottom": rects[0].bottom,
+        "left": rects[0].left,
+        "right": rects[0].right,
+    };
+    for (var i = 1; i < rects.length; i++) {
+        rect.top = Math.min(rect.top, rects[i].top);
+        rect.bottom = Math.max(rect.bottom, rects[i].bottom);
+        rect.left = Math.min(rect.left, rects[i].left);
+        rect.right = Math.max(rect.right, rects[i].right);
+    }
+    rect.width = rect.right - rect.left;
+    rect.height = rect.bottom - rect.top;
+    return rect;
+]=]
+
+local SCAN_FRAME_JS = [=[
+    var vw = window.innerWidth || 0;
+    var vh = window.innerHeight || 0;
+    if (vw <= 0 || vh <= 0)
+        return [];
+    try {
+        if (window.frameElement) {
+            var fr = window.frameElement.getBoundingClientRect();
+            var pw = window.parent.innerWidth || 0;
+            var ph = window.parent.innerHeight || 0;
+            if (fr.width <= 0 || fr.height <= 0 ||
+                fr.right < 0 || fr.left > pw ||
+                fr.bottom < 0 || fr.top > ph) {
+                return [];
+            }
+        }
+    } catch (e) {}
+
+    var nodes;
+    if (typeof selector === "string") {
+        if (!document.body)
+            return [];
+        nodes = document.body.querySelectorAll(selector);
+    } else if (elemList) {
+        nodes = elemList;
+    } else {
+        return [];
+    }
+
+    var sx = window.scrollX || 0;
+    var sy = window.scrollY || 0;
+
+    function getVisibleBB(el) {
+        var rects = el.getClientRects();
+        var n = rects ? rects.length : 0;
+        if (n === 0)
+            return null;
+
+        var left, top, width, height;
+        if (!el.firstElementChild) {
+            var found = false;
+            for (var i = 0; i < n; i++) {
+                var ri = rects[i];
+                if (ri.width !== 0 && ri.height !== 0) {
+                    left = ri.left;
+                    top = ri.top;
+                    width = ri.width;
+                    height = ri.height;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                return null;
+        } else {
+            var r0 = rects[0];
+            var minT = r0.top, maxB = r0.bottom, minL = r0.left, maxR = r0.right;
+            for (var j = 1; j < n; j++) {
+                var rj = rects[j];
+                if (rj.top < minT) minT = rj.top;
+                if (rj.bottom > maxB) maxB = rj.bottom;
+                if (rj.left < minL) minL = rj.left;
+                if (rj.right > maxR) maxR = rj.right;
+            }
+            left = minL;
+            top = minT;
+            width = maxR - minL;
+            height = maxB - minT;
+        }
+
+        if (width === 0 || height === 0)
+            return null;
+
+        if (vw < left || left + width < 0 || vh < top || top + height < 0)
+            return null;
+
+        var cs = window.getComputedStyle(el);
+        var display = cs.display;
+        if (display === "none" || cs.visibility === "hidden")
+            return null;
+
+        if (display === "inline") {
+            var parent = el.parentElement;
+            if (parent) {
+                var pd = window.getComputedStyle(parent).display;
+                if (pd === "block" || pd === "inline-block") {
+                    var pr = parent.getBoundingClientRect();
+                    var maxW = parent.offsetWidth - (left - pr.left);
+                    if (width > maxW)
+                        width = maxW;
+                    if (width <= 0 || left + width < 0)
+                        return null;
+                }
+            }
+        }
+
+        if (el.tagName === "A") {
+            var first = el.firstElementChild;
+            if (first && first.tagName === "IMG" && !first.nextElementSibling) {
+                var imgBB = getVisibleBB(first);
+                if (imgBB)
+                    return imgBB;
+            }
+        }
+
+        return {
+            x: sx + left,
+            y: sy + top,
+            w: width,
+            h: height
+        };
+    }
+
+    var results = [];
+    var len = (nodes && nodes.length) || 0;
+    for (var k = 0; k < len; k++) {
+        var el = nodes[k];
+        if (!el)
+            continue;
+        var bb = getVisibleBB(el);
+        if (!bb)
+            continue;
+
+        var text = "";
+        var tag = el.tagName || "";
+        var etype = (el.type !== undefined && el.type !== null) ? el.type : el.getAttribute("type");
+        if (etype !== "password") {
+            if (tag !== "BODY")
+                text = el.textContent || "";
+            if (text === "" && typeof el.value === "string")
+                text = el.value;
+        }
+        if (text === "")
+            text = el.getAttribute("placeholder") || "";
+
+        results.push({
+            elem: el,
+            bb: bb,
+            text: text,
+            tag_name: tag
+        });
+    }
+    return results;
+]=]
+
+local BUILD_OVERLAY_JS = [=[
+    var root = (document.body && document.body.parentElement) || document.documentElement;
+    if (!root)
+        return null;
+    var sx = window.scrollX || 0;
+    var sy = window.scrollY || 0;
+    var overlay = document.createElement("div");
+    overlay.setAttribute("id", "luakit_select_overlay");
+    var styleEl = document.createElement("style");
+    styleEl.setAttribute("id", "luakit_select_stylesheet");
+    styleEl.textContent = stylesheet;
+
+    var overlays = [];
+    var labels = [];
+    var n = (specs && specs.length) || 0;
+    for (var i = 0; i < n; i++) {
+        var s = specs[i];
+        var rx = Math.trunc(s.x);
+        var ry = Math.trunc(s.y);
+        var rw = Math.trunc(s.w);
+        var rh = Math.trunc(s.h);
+        var lx = Math.trunc(Math.max(s.x - 10, sx));
+        var ly = Math.trunc(Math.max(s.y - 10, sy));
+
+        var ov = document.createElement("span");
+        ov.setAttribute("class", "hint_overlay hint_overlay_" + s.tag);
+        ov.setAttribute("style", "left: " + rx + "px; top: " + ry + "px; width: " + rw + "px; height: " + rh + "px;");
+        overlay.appendChild(ov);
+        overlays.push(ov);
+
+        var lb = document.createElement("span");
+        lb.setAttribute("class", "hint_label hint_label_" + s.tag);
+        lb.setAttribute("style", "left: " + lx + "px; top: " + ly + "px;");
+        lb.textContent = s.label;
+        overlay.appendChild(lb);
+        labels.push(lb);
+    }
+
+    root.appendChild(overlay);
+    root.appendChild(styleEl);
+    return {
+        overlay: overlay,
+        stylesheet: styleEl,
+        overlays: overlays,
+        labels: labels
+    };
+]=]
+
 local function get_element_bb_if_visible(element, wbb, client_rects)
     -- Find the element bounding box
     local r
@@ -189,16 +408,16 @@ local function get_element_bb_if_visible(element, wbb, client_rects)
             if r[i].width == 0 or r[i].height == 0 then table.remove(r, i) end
         end
         if #r == 0 then
-            msg.info("get_element_bb_if_visible: no client rects for element %s", tostring(element.tag_name))
             return nil
         end
         r = r[1]
+    elseif client_rects then
+        r = client_rects(element)
     else
-        r = client_rects(element) or element.rect
+        r = element.rect
     end
 
     if not r then
-        msg.info("get_element_bb_if_visible: r is nil for element %s", tostring(element.tag_name))
         return nil
     end
 
@@ -209,34 +428,30 @@ local function get_element_bb_if_visible(element, wbb, client_rects)
         h = r.height,
     }
 
-    if rbb.w == 0 or rbb.h == 0 then
-        msg.info("get_element_bb_if_visible: element %s has 0 size: %dx%d", tostring(element.tag_name), rbb.w, rbb.h)
+    if rbb.w == 0 or rbb.h == 0 or not bounding_boxes_intersect(wbb, rbb) then
         return nil
     end
 
     local style = element.style
     local display = style.display
-    local visibility = style.visibility
-
-    if display == 'none' or visibility == 'hidden' then
-        msg.info("get_element_bb_if_visible: element %s is display:none or hidden", tostring(element.tag_name))
+    if display == "none" or style.visibility == "hidden" then
         return nil
     end
 
     -- Clip bounding box!
     if display == "inline" then
         local parent = element.parent
-        local pd = parent.style.display
-        if pd == "block" or pd == "inline-block" then
-            local w = parent.rect.width
-            w = w - (r.left - parent.rect.left)
-            if rbb.w > w then rbb.w = w end
+        if parent then
+            local pd = parent.style.display
+            if pd == "block" or pd == "inline-block" then
+                local w = parent.rect.width
+                w = w - ((wbb.x + r.left) - parent.rect.left)
+                if rbb.w > w then rbb.w = w end
+                if rbb.w <= 0 or not bounding_boxes_intersect(wbb, rbb) then
+                    return nil
+                end
+            end
         end
-    end
-
-    if not bounding_boxes_intersect(wbb, rbb) then
-        msg.info("get_element_bb_if_visible: element %s doesn't intersect wbb", tostring(element.tag_name))
-        return nil
     end
 
     -- If a link element contains one image, use the image dimensions
@@ -250,25 +465,43 @@ local function get_element_bb_if_visible(element, wbb, client_rects)
     return rbb
 end
 
-local function frame_find_hints(client_rects, frame, elements)
-    local hints = {}
+local function frame_find_hints(frame, elements)
+    local selector = nil
+    local elem_list = nil
 
     if type(elements) == "string" then
-        local selector = elements
-        elements = frame.body:query(elements)
-        msg.info("frame_find_hints: selector %q matched %d elements", selector, #elements)
+        selector = elements
     else
-        local elems = {}
+        elem_list = {}
         for _, e in ipairs(elements) do
             if e.owner_document == frame.doc then
-                elems[#elems + 1] = e
+                elem_list[#elem_list + 1] = e
             end
         end
-        elements = elems
-        msg.info("frame_find_hints: list parameter, matched %d elements in frame.doc", #elements)
+        if #elem_list == 0 then
+            return {}
+        end
     end
 
-    -- Find the visible bounding box
+    local scan_fn, scan_err = frame.doc:wrap_js(SCAN_FRAME_JS, {"selector", "elemList"})
+    if scan_fn then
+        local res, call_err = scan_fn(selector, elem_list)
+        if type(res) == "table" then
+            msg.debug("frame_find_hints: %d visible hints found", #res)
+            return res
+        end
+        if call_err then
+            msg.warn("frame_find_hints JS execution failed: %s", call_err)
+        end
+    elseif scan_err then
+        msg.warn("frame_find_hints wrap_js failed: %s", scan_err)
+    end
+
+    -- Fallback path
+    local hints = {}
+    local list = elem_list or frame.body:query(selector)
+    local client_rects = frame.doc:wrap_js(CLIENT_RECTS_JS, {"element"})
+
     local w = frame.doc.window
     local wbb = {
         x = w.scroll_x,
@@ -277,22 +510,22 @@ local function frame_find_hints(client_rects, frame, elements)
         h = w.inner_height,
     }
 
-    local visible_count = 0
-    for _, element in ipairs(elements) do
-        local rbb = get_element_bb_if_visible(element,wbb, client_rects)
-
+    for _, element in ipairs(list) do
+        local rbb = get_element_bb_if_visible(element, wbb, client_rects)
         if rbb then
-            visible_count = visible_count + 1
             local text = ""
+            local tag = element.tag_name
             if element.type ~= "password" then
-                text = element.text_content
+                if tag ~= "BODY" then
+                    text = element.text_content
+                end
                 if text == "" then text = element.value or "" end
             end
             if text == "" then text = element.attr.placeholder or "" end
-            hints[#hints+1] = { elem = element, bb = rbb, text = text }
+            hints[#hints + 1] = { elem = element, bb = rbb, text = text, tag_name = tag }
         end
     end
-    msg.info("frame_find_hints: %d/%d elements are visible", visible_count, #elements)
+    msg.debug("frame_find_hints (fallback): %d/%d elements are visible", #hints, #list)
 
     return hints
 end
@@ -310,6 +543,7 @@ end
 -- @tparam number num Number of labels
 -- @treturn table Array of label strings
 function _M.make_labels(num)
+    if num <= 0 then return {} end
     return label_maker(num)
 end
 
@@ -352,6 +586,10 @@ local function init_frame(frame, stylesheet)
 end
 
 local function cleanup_frame(frame)
+    if frame.on_doc_destroy and frame.doc then
+        frame.doc:remove_signal("destroy", frame.on_doc_destroy)
+        frame.on_doc_destroy = nil
+    end
     if frame.overlay then
         frame.overlay:remove()
         frame.overlay = nil
@@ -441,16 +679,12 @@ local function focus(state, step)
     return new_hint
 end
 
---- Enter element selection mode on a web page.
+--- Scan a web page for visible matching elements and prepare selection state.
 --
--- The web page must not already be in element selection mode.
---
--- @tparam page page The web page in which to enter element selection.
+-- @tparam page page The web page in which to scan for elements.
 -- @tparam string|{dom_element} elements A selector to filter elements, or an array of elements.
--- @tparam string stylesheet The stylesheet to apply.
 -- @tparam boolean ignore_case `true` if text case should be ignored.
--- @treturn {...} Table with data for the currently focused hint.
--- @treturn number The number of currently visible hints.
+-- @treturn number The number of visible hints found.
 function _M.scan(page, elements, ignore_case)
     assert(type(page) == "page")
     assert(type(elements) == "string" or type(elements) == "table")
@@ -460,7 +694,7 @@ function _M.scan(page, elements, ignore_case)
     end
 
     local root = page.document
-    local state = {}
+    local state = { page = page }
     page_states[page_id] = state
 
     local frames = {}
@@ -478,30 +712,9 @@ function _M.scan(page, elements, ignore_case)
     state.hints = {}
     state.ignore_case = ignore_case or false
 
-    local client_rects = page:wrap_js([=[
-        var rects = element.getClientRects();
-        if (rects.length == 0)
-            return undefined;
-        var rect = {
-            "top": rects[0].top,
-            "bottom": rects[0].bottom,
-            "left": rects[0].left,
-            "right": rects[0].right,
-        };
-        for (var i = 1; i < rects.length; i++) {
-            rect.top = Math.min(rect.top, rects[i].top);
-            rect.bottom = Math.max(rect.bottom, rects[i].bottom);
-            rect.left = Math.min(rect.left, rects[i].left);
-            rect.right = Math.max(rect.right, rects[i].right);
-        }
-        rect.width = rect.right - rect.left;
-        rect.height = rect.bottom - rect.top;
-        return rect;
-    ]=], {"element"})
-
     -- Find all hints in the viewport
     for _, frame in ipairs(state.frames) do
-        frame.hints = frame_find_hints(client_rects, frame, elements)
+        frame.hints = frame_find_hints(frame, elements)
         -- Build an array of all hints
         for _, hint in ipairs(frame.hints) do
             state.hints[#state.hints+1] = hint
@@ -528,40 +741,85 @@ _M.show_hints = function (page, labels, stylesheet)
 
     for i, hint in ipairs(state.hints) do
         hint.label = labels[i]
+        hint.hidden = false
     end
 
     for _, frame in ipairs(state.frames) do
-        init_frame(frame, stylesheet)
-        local fwr = frame.doc.window
-        local fsx, fsy = fwr.scroll_x, fwr.scroll_y
-        for _, hint in ipairs(frame.hints) do
-            -- Append hint elements to overlay
-            local e = hint.elem
+        local specs = {}
+        for i, hint in ipairs(frame.hints) do
             local r = hint.bb
+            specs[i] = {
+                x = r.x,
+                y = r.y,
+                w = r.w,
+                h = r.h,
+                tag = hint.tag_name or hint.elem.tag_name,
+                label = hint.label,
+            }
+        end
 
-            local overlay_style = string.format("left: %dpx; top: %dpx; width: %dpx; height: %dpx;", r.x, r.y, r.w, r.h)
-            local label_style = string.format("left: %dpx; top: %dpx;", max(r.x-10, fsx), max(r.y-10, fsy), r.w, r.h)
+        local built = false
+        local build_fn, build_err = frame.doc:wrap_js(BUILD_OVERLAY_JS, {"specs", "stylesheet"})
+        if build_fn then
+            local res, call_err = build_fn(specs, stylesheet)
+            if type(res) == "table" and res.overlay and res.stylesheet then
+                frame.overlay = res.overlay
+                frame.stylesheet = res.stylesheet
+                local overlays = res.overlays or {}
+                local label_elems = res.labels or {}
+                for i, hint in ipairs(frame.hints) do
+                    hint.overlay_elem = overlays[i]
+                    hint.label_elem = label_elems[i]
+                end
+                built = true
+            elseif call_err then
+                msg.warn("show_hints JS execution failed: %s", call_err)
+            end
+        elseif build_err then
+            msg.warn("show_hints wrap_js failed: %s", build_err)
+        end
 
-            local overlay_class = "hint_overlay hint_overlay_" .. e.tag_name
-            local label_class = "hint_label hint_label_" .. e.tag_name
-            hint.overlay_elem = frame.doc:create_element("span", {class = overlay_class, style = overlay_style})
-            hint.label_elem = frame.doc:create_element("span", {class = label_class, style = label_style}, hint.label)
+        if not built then
+            local fwr = frame.doc.window
+            local fsx, fsy = fwr.scroll_x, fwr.scroll_y
+            init_frame(frame, stylesheet)
+            for _, hint in ipairs(frame.hints) do
+                local tag = hint.tag_name or hint.elem.tag_name
+                local r = hint.bb
 
-            frame.overlay:append(hint.overlay_elem)
-            frame.overlay:append(hint.label_elem)
+                local overlay_style = string.format("left: %dpx; top: %dpx; width: %dpx; height: %dpx;",
+                    r.x, r.y, r.w, r.h)
+                local label_style = string.format("left: %dpx; top: %dpx;", max(r.x-10, fsx), max(r.y-10, fsy))
+
+                local overlay_class = "hint_overlay hint_overlay_" .. tag
+                local label_class = "hint_label hint_label_" .. tag
+                hint.overlay_elem = frame.doc:create_element("span", {
+                    class = overlay_class,
+                    style = overlay_style,
+                })
+                hint.label_elem = frame.doc:create_element("span", {
+                    class = label_class,
+                    style = label_style,
+                }, hint.label)
+
+                frame.overlay:append(hint.overlay_elem)
+                frame.overlay:append(hint.label_elem)
+            end
         end
     end
 
     for _, frame in ipairs(state.frames) do
-        frame.doc:add_signal("destroy", function ()
+        frame.on_doc_destroy = function ()
             cleanup_frame(frame)
-        end)
+        end
+        frame.doc:add_signal("destroy", frame.on_doc_destroy)
     end
-    page:add_signal("destroy", function ()
-        _M.leave(page)
-    end)
+    state.on_page_destroy = function ()
+        _M.leave(page_id)
+    end
+    page:add_signal("destroy", state.on_page_destroy)
 
-    filter(state, "", "")
+    state.num_visible_hints = #state.hints
     return focus(state, 0), state.num_visible_hints
 end
 
@@ -574,111 +832,10 @@ _M.enter = function (page, elements, stylesheet, ignore_case)
     assert(type(page) == "page")
     assert(type(elements) == "string" or type(elements) == "table")
     assert(type(stylesheet) == "string")
-    local page_id = page.id
-    if page_states[page_id] then
-        _M.leave(page)
-    end
 
-    local root = page.document
-    local state = {}
-    page_states[page_id] = state
-
-    local frames = {}
-    if root and root.body then
-        table.insert(frames, { doc = root, body = root.body })
-    end
-    for _, doc in ipairs(page:get_frames() or {}) do
-        if doc and doc.body and doc ~= root then
-            table.insert(frames, { doc = doc, body = doc.body })
-        end
-    end
-    state.frames = frames
-    state.focused = nil
-    state.hints = {}
-    state.ignore_case = ignore_case or false
-
-    local client_rects, err = page:wrap_js([=[
-        var rects = element.getClientRects();
-        if (rects.length == 0)
-            return undefined;
-        var rect = {
-            "top": rects[0].top,
-            "bottom": rects[0].bottom,
-            "left": rects[0].left,
-            "right": rects[0].right,
-        };
-        for (var i = 1; i < rects.length; i++) {
-            rect.top = Math.min(rect.top, rects[i].top);
-            rect.bottom = Math.max(rect.bottom, rects[i].bottom);
-            rect.left = Math.min(rect.left, rects[i].left);
-            rect.right = Math.max(rect.right, rects[i].right);
-        }
-        rect.width = rect.right - rect.left;
-        rect.height = rect.bottom - rect.top;
-        return rect;
-    ]=], {"element"})
-
-    if not client_rects and err then
-        msg.info("wrap_js failed: %s", err)
-    end
-
-    msg.info("select_wm.enter: state.frames length = %d, elements query = %s", #state.frames, tostring(elements))
-
-    -- Find all hints in the viewport
-    for idx, frame in ipairs(state.frames) do
-        -- Set up the frame, and find hints
-        init_frame(frame, stylesheet)
-        frame.hints = frame_find_hints(client_rects, frame, elements)
-        msg.info("select_wm.enter: frame %d hints count = %d", idx, #frame.hints)
-        -- Build an array of all hints
-        for _, hint in ipairs(frame.hints) do
-            state.hints[#state.hints+1] = hint
-        end
-    end
-    msg.info("select_wm.enter: total hints count = %d", #state.hints)
-
-    -- Sort them by on-screen position, and assign labels
-    local labels = _M.make_labels(#state.hints)
-    assert(#state.hints == #labels)
-
-    table.sort(state.hints, sort_hints_top_left)
-
-    for i, hint in ipairs(state.hints) do
-        hint.label = labels[i]
-    end
-
-    for _, frame in ipairs(state.frames) do
-        local fwr = frame.doc.window
-        local fsx, fsy = fwr.scroll_x, fwr.scroll_y
-        for _, hint in ipairs(frame.hints) do
-            -- Append hint elements to overlay
-            local e = hint.elem
-            local r = hint.bb
-
-            local overlay_style = string.format("left: %dpx; top: %dpx; width: %dpx; height: %dpx;", r.x, r.y, r.w, r.h)
-            local label_style = string.format("left: %dpx; top: %dpx;", max(r.x-10, fsx), max(r.y-10, fsy), r.w, r.h)
-
-            local overlay_class = "hint_overlay hint_overlay_" .. e.tag_name
-            local label_class = "hint_label hint_label_" .. e.tag_name
-            hint.overlay_elem = frame.doc:create_element("span", {class = overlay_class, style = overlay_style})
-            hint.label_elem = frame.doc:create_element("span", {class = label_class, style = label_style}, hint.label)
-
-            frame.overlay:append(hint.overlay_elem)
-            frame.overlay:append(hint.label_elem)
-        end
-    end
-
-    for _, frame in ipairs(state.frames) do
-        frame.doc:add_signal("destroy", function ()
-            cleanup_frame(frame)
-        end)
-    end
-    page:add_signal("destroy", function ()
-        _M.leave(page)
-    end)
-
-    filter(state, "", "")
-    return focus(state, 0), state.num_visible_hints
+    local count = _M.scan(page, elements, ignore_case)
+    local labels = _M.make_labels(count)
+    return _M.show_hints(page, labels, stylesheet)
 end
 
 --- Leave element selection mode on a web page.
@@ -693,6 +850,10 @@ function _M.leave(page)
 
     local state = page_states[page]
     if not state then return end
+    if state.on_page_destroy and state.page then
+        state.page:remove_signal("destroy", state.on_page_destroy)
+        state.on_page_destroy = nil
+    end
     for _, frame in ipairs(state.frames) do
         cleanup_frame(frame)
     end

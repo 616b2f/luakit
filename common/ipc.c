@@ -16,6 +16,7 @@
  *
  */
 
+#include <poll.h>
 #include <stdlib.h>
 
 #include "common/lualib.h"
@@ -133,7 +134,7 @@ ipc_send(ipc_endpoint_t *ipc, const ipc_header_t *header, const void *data)
     }
 }
 
-static void
+static gboolean
 ipc_recv_and_dispatch_or_enqueue(ipc_endpoint_t *ipc)
 {
     g_assert(ipc);
@@ -150,7 +151,7 @@ ipc_recv_and_dispatch_or_enqueue(ipc_endpoint_t *ipc)
         case G_IO_STATUS_NORMAL:
             break;
         case G_IO_STATUS_AGAIN:
-            return;
+            return FALSE;
         case G_IO_STATUS_EOF:
             verbose("g_io_channel_read_chars(): End Of File received");
             /* OSX and NetBSD are sending EOF on nonblocking channels first.
@@ -165,13 +166,13 @@ ipc_recv_and_dispatch_or_enqueue(ipc_endpoint_t *ipc)
              * disconnected.
              */
             g_atomic_int_dec_and_test(&ipc->refcount);
-            return;
+            return FALSE;
         case G_IO_STATUS_ERROR:
             if (!g_str_equal(ipc->name, "UI"))
             if (!g_str_equal(error->message, "Connection reset by peer"))
                 error("g_io_channel_read_chars(): %s", error->message);
             g_error_free(error);
-            return;
+            return FALSE;
         default:
             g_assert_not_reached();
     }
@@ -181,7 +182,7 @@ ipc_recv_and_dispatch_or_enqueue(ipc_endpoint_t *ipc)
     remaining -= bytes_read;
 
     if (remaining > 0)
-        return;
+        return FALSE;
 
     /* If we've just finished downloading the header... */
     if (!state->hdr_done) {
@@ -189,8 +190,7 @@ ipc_recv_and_dispatch_or_enqueue(ipc_endpoint_t *ipc)
         state->hdr_done = TRUE;
         state->bytes_read = 0;
         state->payload = g_malloc(state->hdr.length);
-        ipc_recv_and_dispatch_or_enqueue(ipc);
-        return;
+        return ipc_recv_and_dispatch_or_enqueue(ipc);
     }
 
     /* Otherwise, we finished downloading the message */
@@ -201,6 +201,7 @@ ipc_recv_and_dispatch_or_enqueue(ipc_endpoint_t *ipc)
     state->payload = NULL;
     state->bytes_read = 0;
     state->hdr_done = FALSE;
+    return TRUE;
 }
 
 /* Callback function for channel watch */
@@ -209,7 +210,17 @@ ipc_recv(GIOChannel *UNUSED(channel), GIOCondition UNUSED(cond), ipc_endpoint_t 
 {
     if (!ipc_endpoint_incref(ipc))
         return TRUE;
-    ipc_recv_and_dispatch_or_enqueue(ipc);
+    for (int i = 0; i < 64 && ipc->status == IPC_ENDPOINT_CONNECTED; i++) {
+        if (i > 0) {
+            if (!ipc->channel)
+                break;
+            struct pollfd pfd = { .fd = g_io_channel_unix_get_fd(ipc->channel), .events = POLLIN };
+            if (poll(&pfd, 1, 0) <= 0 || !(pfd.revents & POLLIN))
+                break;
+        }
+        if (!ipc_recv_and_dispatch_or_enqueue(ipc))
+            break;
+    }
     ipc_endpoint_decref(ipc);
     return TRUE;
 }
@@ -363,6 +374,8 @@ ipc_endpoint_disconnect(ipc_endpoint_t *ipc)
     g_io_channel_shutdown(ipc->channel, TRUE, NULL);
     ipc->status = IPC_ENDPOINT_DISCONNECTED;
     ipc->channel = NULL;
+    if (!ipc->queue)
+        ipc->queue = g_queue_new();
 }
 
 // vim: ft=c:et:sw=4:ts=8:sts=4:tw=80

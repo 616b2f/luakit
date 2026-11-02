@@ -32,12 +32,36 @@
 static GHashTable *group_levels;
 static GAsyncQueue *queued_emissions;
 static gboolean block_log = FALSE;
+static log_level_t max_verbosity = LOG_LEVEL_info;
 
 void
 log_set_verbosity(const char *group, log_level_t lvl)
 {
     group_levels = group_levels ?: g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     g_hash_table_insert(group_levels, g_strdup(group), GINT_TO_POINTER(lvl+1));
+
+    log_level_t computed_max = LOG_LEVEL_fatal;
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, group_levels);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        guint stored = GPOINTER_TO_UINT(value);
+        if (stored > 0 && (log_level_t)(stored - 1) > computed_max)
+            computed_max = (log_level_t)(stored - 1);
+    }
+    max_verbosity = computed_max;
+}
+
+log_level_t
+log_get_max_verbosity(void)
+{
+    return max_verbosity;
+}
+
+gboolean
+log_level_might_be_logged(log_level_t lvl)
+{
+    return lvl <= max_verbosity;
 }
 
 /* Will modify the group name passed to it, unless that name is "all" */

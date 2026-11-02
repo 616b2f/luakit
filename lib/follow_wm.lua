@@ -29,7 +29,7 @@ local evaluators = {
             return
         end
         -- Find and click the element directly in the centre of the link, with shadow DOM and anchor navigation support
-        local click_func, err = page:wrap_js([=[
+        local click_func, err = (element.owner_document or page):wrap_js([=[
             try {
                 if (element.childElementCount > 0) {
                     var rects = element.getClientRects();

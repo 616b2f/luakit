@@ -64,6 +64,30 @@ ui:add_signal("run_dom_tests", function (_, page)
         assert(container.first_child and container.first_child.attr.id == "inp", "container.first_child failed")
         assert(s1.parent and s1.parent.tag_name == "DIV", "s1.parent failed")
 
+        -- Test create_element with attributes and inner text (textContent)
+        local b_style = "position:absolute;left:12px;top:34px;width:40px;height:20px;"
+        local badge = doc:create_element("span", { id = "badge", style = b_style }, "42")
+        container:append(badge)
+        assert(badge.text_content == "42", "expected badge text_content '42', got " .. tostring(badge.text_content))
+        assert(badge.rect.width >= 0 and badge.rect.height >= 0, "badge.rect width/height failed")
+        assert(type(badge.rect.left) == "number" and type(badge.rect.top) == "number", "badge.rect left/top failed")
+
+        -- Test doc:eval_js and doc:wrap_js with DOM element round-trip
+        local sum = doc:eval_js("20 + 22")
+        assert(sum == 42, "doc:eval_js expected 42, got " .. tostring(sum))
+        local inspect_fn = assert(doc:wrap_js([=[
+            return {
+                first: elems[0],
+                second_id: elems[1].id,
+                count: elems.length
+            };
+        ]=], {"elems"}))
+        local wrapped_res = inspect_fn({ s1, s2 })
+        assert(type(wrapped_res) == "table", "doc:wrap_js result should be table")
+        assert(wrapped_res.count == 2, "expected count 2, got " .. tostring(wrapped_res.count))
+        assert(wrapped_res.second_id == "s2", "expected second_id 's2', got " .. tostring(wrapped_res.second_id))
+        assert(wrapped_res.first == s1, "expected Element marshaled back to identical dom_element userdata")
+
         container:remove()
     end)
 

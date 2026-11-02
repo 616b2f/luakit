@@ -64,8 +64,8 @@ luaH_dom_element_gc(lua_State *L)
     dom_element_t *element = luaH_toudata(L, 1, &dom_element_class);
     if (element) {
         if (element->element) {
-            guint64 id = js_value_get_unique_id(element->element);
-            luaH_uniq_del_ptr(L, REG_KEY, (void*)(uintptr_t)id);
+            if (element->uniq_id)
+                luaH_uniq_del_ptr(L, REG_KEY, (void*)(uintptr_t)element->uniq_id);
             g_object_unref(element->element);
             element->element = NULL;
         }
@@ -93,6 +93,7 @@ luaH_dom_element_from_node(lua_State *L, JSCValue* node)
 
     dom_element_t *element = dom_element_new(L);
     element->element = g_object_ref(node);
+    element->uniq_id = id;
 
     luaH_uniq_add_ptr(L, REG_KEY, ptr, -1);
     return 1;
@@ -157,7 +158,7 @@ luaH_dom_element_remove(lua_State *L)
 static gint
 luaH_dom_element_rect_index(lua_State *L)
 {
-    dom_element_t *element = luaH_toudata(L, lua_upvalueindex(1), &dom_element_class);
+    dom_element_t *element = luaH_check_dom_element(L, lua_upvalueindex(1));
     const gchar *prop = luaL_checkstring(L, 2);
     luakit_token_t token = l_tokenize(prop);
 
@@ -173,17 +174,20 @@ luaH_dom_element_rect_index(lua_State *L)
         val = jsc_value_to_double(val_obj);
         g_object_unref(val_obj);
     } else if (token == L_TK_LEFT || token == L_TK_TOP) {
-        JSCValue *fn = jsc_context_evaluate_with_source_uri(ctx,
-            "(function(elem) {\n"
-            "  var r = elem.getBoundingClientRect();\n"
-            "  return { left: r.left + window.scrollX, top: r.top + window.scrollY };\n"
-            "})", -1, NULL, 1);
-        JSCValue *res = jsc_value_function_call(fn, JSC_TYPE_VALUE, element->element, G_TYPE_NONE);
-        JSCValue *prop_val = jsc_value_object_get_property(res, token == L_TK_LEFT ? "left" : "top");
-        val = jsc_value_to_double(prop_val);
-        g_object_unref(prop_val);
-        g_object_unref(res);
-        g_object_unref(fn);
+        JSCValue *rect = jsc_value_object_invoke_method(element->element, "getBoundingClientRect", G_TYPE_NONE);
+        JSCValue *window = jsc_context_get_value(ctx, "window");
+        if (rect && !jsc_value_is_null(rect) && !jsc_value_is_undefined(rect)) {
+            JSCValue *prop_val = jsc_value_object_get_property(rect, token == L_TK_LEFT ? "left" : "top");
+            val += jsc_value_to_double(prop_val);
+            g_object_unref(prop_val);
+        }
+        if (window && !jsc_value_is_null(window) && !jsc_value_is_undefined(window)) {
+            JSCValue *scroll_val = jsc_value_object_get_property(window, token == L_TK_LEFT ? "scrollX" : "scrollY");
+            val += jsc_value_to_double(scroll_val);
+            g_object_unref(scroll_val);
+        }
+        if (window) g_object_unref(window);
+        if (rect) g_object_unref(rect);
     } else {
         return 0;
     }

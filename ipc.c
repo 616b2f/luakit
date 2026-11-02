@@ -18,6 +18,7 @@
 
 #include "globalconf.h"
 #include "ipc.h"
+#include "log.h"
 
 #include <assert.h>
 #include <webkit/webkit.h>
@@ -103,6 +104,13 @@ ipc_associate_pending_webview(widget_t *w)
             webview_set_web_process_id(w, val->pid);
         }
     }
+}
+
+void
+ipc_remove_page_endpoint(guint64 page_id)
+{
+    if (page_endpoints)
+        g_hash_table_remove(page_endpoints, &page_id);
 }
 
 void
@@ -288,7 +296,8 @@ initialize_web_process_extensions_cb(WebKitWebContext *context, gpointer UNUSED(
     const char *package_cpath = lua_tostring(common.L, -1);
     lua_pop(common.L, 3);
 
-    GVariant *payload = g_variant_new("(sss)", path, package_path, package_cpath);
+    GVariant *payload = g_variant_new("(sssi)", path, package_path, package_cpath,
+            (gint)log_get_max_verbosity());
     webkit_web_context_set_web_process_extensions_initialization_user_data(context, payload);
     webkit_web_context_set_web_process_extensions_directory(context, dir);
 

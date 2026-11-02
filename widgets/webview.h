@@ -32,6 +32,7 @@ void webview_set_web_process_id(widget_t *w, pid_t pid);
 ipc_endpoint_t * webview_get_endpoint(widget_t *w);
 gboolean webview_widget_is_inspector(widget_t *w, GtkWidget *focused);
 void webview_add_subframe_endpoint(widget_t *w, ipc_endpoint_t *ipc);
+void webview_clear_subframe_endpoints(widget_t *w);
 void webview_send_lua_to_subframes(widget_t *w, lua_State *L, gint start, gint end);
 
 #endif

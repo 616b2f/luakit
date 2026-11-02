@@ -54,6 +54,7 @@ typedef enum { LOG_LEVELS } log_level_t;
 void _log(log_level_t lvl, const gchar *, const gchar *, ...)
     __attribute__ ((format (printf, 3, 4)));
 void va_log(log_level_t lvl, const gchar *, const gchar *, va_list);
+gboolean log_level_might_be_logged(log_level_t lvl);
 
 #define fatal(...) l_log(LOG_LEVEL_fatal, ##__VA_ARGS__)
 #define error(...) l_log(LOG_LEVEL_error, ##__VA_ARGS__)

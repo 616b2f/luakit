@@ -51,6 +51,7 @@ typedef struct _dom_element_t {
     LUA_OBJECT_HEADER
     signal_t *dom_events;
     JSCValue *element;
+    guint64 uniq_id;
 } dom_element_t;
 
 typedef struct _WebKitDOMElement WebKitDOMElement;

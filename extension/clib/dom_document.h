@@ -29,10 +29,12 @@
 typedef struct _dom_document_t {
     LUA_OBJECT_HEADER
     JSCValue *document;
+    guint64 uniq_id;
 } dom_document_t;
 
 void dom_document_class_setup(lua_State *);
 gint luaH_dom_document_from_webkit_dom_document(lua_State *L, JSCValue *doc);
+dom_document_t *luaH_to_dom_document(lua_State *L, gint idx);
 
 #endif
 

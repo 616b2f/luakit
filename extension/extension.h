@@ -44,6 +44,7 @@ typedef struct _extension_t {
 extern extension_t extension;
 
 WebKitFrame *web_page_get_main_frame(WebKitWebPage *page);
+void web_log_set_max_level(log_level_t lvl);
 
 #endif
 

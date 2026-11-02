@@ -60,6 +60,9 @@ luaH_msg_string_from_args(lua_State *L)
 static gint
 luaH_msg(lua_State *L, log_level_t lvl)
 {
+    if (!log_level_might_be_logged(lvl))
+        return 0;
+
     lua_Debug ar;
     lua_getstack(L, 1, &ar);
     lua_getinfo(L, "Sln", &ar);
